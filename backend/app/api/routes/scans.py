@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +12,7 @@ from app.schemas.scan import (
     ScanListOut,
     ScanOut,
 )
+from app.services.scanner import run_scan
 from app.services.trivy_parser import parse_vulnerabilities
 
 router = APIRouter()
@@ -21,7 +24,7 @@ async def create_scan(body: ScanCreate, db: AsyncSession = Depends(get_db)):
     db.add(scan)
     await db.commit()
     await db.refresh(scan)
-    # Background task for Trivy will be added in 1.4
+    asyncio.create_task(run_scan(scan.id))
     return scan
 
 
