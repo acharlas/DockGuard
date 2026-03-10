@@ -1,0 +1,52 @@
+{
+  "SchemaVersion": 2,
+  "ArtifactName": "nginx:latest",
+  "ArtifactType": "container_image",
+  "Metadata": {
+    "ImageID": "sha256:abc123",
+    "DiffIDs": [],
+    "RepoTags": ["nginx:latest"],
+    "RepoDigests": ["nginx@sha256:def456"]
+  },
+  "Results": [
+    {
+      "Target": "nginx:latest (debian 12.5)",
+      "Class": "os-pkgs",
+      "Type": "debian",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2024-0001",
+          "PkgName": "libssl3",
+          "InstalledVersion": "3.0.13-1~deb12u1",
+          "FixedVersion": "3.0.13-1~deb12u2",
+          "Severity": "CRITICAL",
+          "Title": "OpenSSL: Buffer overflow in SSL_select_next_proto"
+        },
+        {
+          "VulnerabilityID": "CVE-2024-0002",
+          "PkgName": "libcurl4",
+          "InstalledVersion": "7.88.1-10+deb12u5",
+          "FixedVersion": "7.88.1-10+deb12u6",
+          "Severity": "HIGH",
+          "Title": "curl: Use-after-free in HTTP/2"
+        },
+        {
+          "VulnerabilityID": "CVE-2024-0003",
+          "PkgName": "zlib1g",
+          "InstalledVersion": "1:1.2.13.dfsg-1",
+          "FixedVersion": null,
+          "Severity": "MEDIUM",
+          "Title": "zlib: Integer overflow in inflate"
+        },
+        {
+          "VulnerabilityID": "CVE-2024-0004",
+          "PkgName": "libc6",
+          "InstalledVersion": "2.36-9+deb12u4",
+          "FixedVersion": "2.36-9+deb12u5",
+          "Severity": "LOW",
+          "Title": "glibc: Minor memory leak in getaddrinfo"
+        }
+      ]
+    }
+  ]
+}
