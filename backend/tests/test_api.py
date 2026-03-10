@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -59,6 +61,34 @@ async def test_list_scans_filter_by_status(
     data = resp.json()
     assert data["total"] == 1
     assert data["items"][0]["scan_status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_list_scans_filter_by_date(
+    client: AsyncClient, db_session: AsyncSession
+):
+    old = ScanResult(
+        image_name="old:1.0",
+        scan_status="completed",
+        created_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
+    )
+    recent = ScanResult(
+        image_name="new:2.0",
+        scan_status="completed",
+        created_at=datetime(2026, 3, 10, tzinfo=timezone.utc),
+    )
+    db_session.add_all([old, recent])
+    await db_session.commit()
+
+    resp = await client.get("/api/v1/scans?date_from=2026-01-01T00:00:00")
+    data = resp.json()
+    assert data["total"] == 1
+    assert data["items"][0]["image_name"] == "new:2.0"
+
+    resp = await client.get("/api/v1/scans?date_to=2025-12-31T23:59:59")
+    data = resp.json()
+    assert data["total"] == 1
+    assert data["items"][0]["image_name"] == "old:1.0"
 
 
 @pytest.mark.asyncio

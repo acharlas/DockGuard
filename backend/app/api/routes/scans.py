@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -33,6 +34,8 @@ async def list_scans(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     status: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     query = select(ScanResult).order_by(ScanResult.created_at.desc())
@@ -41,6 +44,14 @@ async def list_scans(
     if status:
         query = query.where(ScanResult.scan_status == status)
         count_query = count_query.where(ScanResult.scan_status == status)
+
+    if date_from:
+        query = query.where(ScanResult.created_at >= date_from)
+        count_query = count_query.where(ScanResult.created_at >= date_from)
+
+    if date_to:
+        query = query.where(ScanResult.created_at <= date_to)
+        count_query = count_query.where(ScanResult.created_at <= date_to)
 
     total = (await db.execute(count_query)).scalar() or 0
     offset = (page - 1) * size
