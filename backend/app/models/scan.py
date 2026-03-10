@@ -19,8 +19,12 @@ class ScanResult(Base):
     image_name: Mapped[str] = mapped_column(String(255))
     image_digest: Mapped[str | None] = mapped_column(String(255))
     scan_status: Mapped[str] = mapped_column(String(20), default="pending")
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     summary: Mapped[dict | None] = mapped_column(JSONB)
     raw_report: Mapped[dict | None] = mapped_column(JSONB)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
