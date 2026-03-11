@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { createScan, getScan, ScanDetail, Vulnerability } from "@/lib/api";
 
@@ -92,13 +92,18 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Status badge */}
+      {/* Scan status */}
       {scan && (
         <div className="mb-6">
-          <span className="text-sm text-gray-500">
-            {scan.image_name} &mdash;{" "}
-          </span>
-          <StatusBadge status={scan.scan_status} />
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm text-gray-500">{scan.image_name}</span>
+            {(scan.scan_status === "completed" || scan.scan_status === "failed") && (
+              <StatusBadge status={scan.scan_status} />
+            )}
+          </div>
+          {(scan.scan_status === "pending" || scan.scan_status === "running") && (
+            <ScanProgress status={scan.scan_status} startedAt={scan.started_at} />
+          )}
         </div>
       )}
 
@@ -204,6 +209,44 @@ function StatusBadge({ status }: { status: string }) {
     >
       {status}
     </span>
+  );
+}
+
+const SCAN_TIMEOUT_S = 300;
+
+function computePct(startedAt: string): number {
+  const elapsed = (Date.now() - Date.parse(startedAt)) / 1000;
+  return Math.min(Math.round((elapsed / SCAN_TIMEOUT_S) * 100), 95);
+}
+
+function ScanProgress({ status, startedAt }: { status: string; startedAt: string }) {
+  const [pct, setPct] = useState(() => computePct(startedAt));
+
+  useEffect(() => {
+    if (status !== "running") return;
+    const id = setInterval(() => setPct(computePct(startedAt)), 1000);
+    return () => clearInterval(id);
+  }, [status, startedAt]);
+
+  const isPending = status === "pending";
+
+  return (
+    <div>
+      <div className="flex justify-between text-xs text-gray-500 mb-1">
+        <span>{isPending ? "Queued, waiting to start…" : "Scanning image…"}</span>
+        {!isPending && <span>{pct}%</span>}
+      </div>
+      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-1000 ease-linear ${
+            isPending
+              ? "w-[3%] bg-yellow-400 animate-pulse"
+              : "bg-blue-500"
+          }`}
+          style={!isPending ? { width: `${pct}%` } : undefined}
+        />
+      </div>
+    </div>
   );
 }
 
