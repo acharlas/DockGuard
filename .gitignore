@@ -43,7 +43,8 @@ out/
 *.tfstate
 *.tfstate.backup
 *.tfplan
-.terraform.lock.hcl
+terraform.tfvars
+# Note: .terraform.lock.hcl is intentionally tracked (pins provider versions)
 
 # Coverage
 htmlcov/
