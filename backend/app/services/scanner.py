@@ -77,6 +77,8 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
             "--no-progress",
             "--scanners",
             "vuln",
+            "--timeout",
+            f"{settings.trivy_timeout}s",
             scan.image_name,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
