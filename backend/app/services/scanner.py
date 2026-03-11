@@ -27,6 +27,17 @@ async def cancel_scan(scan_id: int) -> None:
         proc.kill()
 
 
+async def _stream_stderr(process: asyncio.subprocess.Process, scan_id: int) -> bytes:
+    lines = []
+    while True:
+        line = await process.stderr.readline()
+        if not line:
+            break
+        lines.append(line)
+        logger.info("Scan %d [trivy]: %s", scan_id, line.decode().rstrip())
+    return b"".join(lines)
+
+
 async def run_scan(scan_id: int) -> None:
     async with _scan_semaphore:
         async with async_session() as db:
@@ -51,7 +62,7 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
 
     try:
         process = await asyncio.create_subprocess_exec(
-            "trivy", "image", "--format", "json", "--quiet",
+            "trivy", "image", "--format", "json", "--no-progress",
             "--scanners", "vuln",
             "--skip-db-update",
             scan.image_name,
@@ -61,11 +72,17 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
         _running_processes[scan_id] = process
         try:
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
+                asyncio.gather(
+                    process.stdout.read(),
+                    _stream_stderr(process, scan_id),
+                ),
                 timeout=settings.trivy_timeout,
             )
         finally:
             _running_processes.pop(scan_id, None)
+            if process.returncode is None:
+                process.kill()
+            await process.wait()
 
         if process.returncode != 0:
             raise RuntimeError(

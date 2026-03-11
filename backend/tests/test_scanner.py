@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import select
@@ -12,10 +12,14 @@ from app.services.scanner import _execute_scan
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def _make_fake_process(stdout: bytes, returncode: int, stderr: bytes = b""):
+def _make_fake_process(stdout: bytes, returncode: int | None, stderr: bytes = b""):
     process = AsyncMock()
-    process.communicate.return_value = (stdout, stderr)
+    process.stdout.read = AsyncMock(return_value=stdout)
+    readline_effects = ([stderr] if stderr else []) + [b""]
+    process.stderr.readline = AsyncMock(side_effect=readline_effects)
     process.returncode = returncode
+    process.kill = MagicMock()
+    process.wait = AsyncMock()
     return process
 
 
@@ -77,3 +81,29 @@ async def test_scan_failure_transitions(db_session: AsyncSession):
     assert scan.scan_status == "failed"
     assert scan.completed_at is not None
     assert scan.raw_report is None
+
+
+@pytest.mark.asyncio
+async def test_scan_timeout_transitions(db_session: AsyncSession):
+    scan = ScanResult(image_name="slow:latest", scan_status="pending")
+    db_session.add(scan)
+    await db_session.commit()
+    await db_session.refresh(scan)
+    scan_id = scan.id
+
+    fake_process = _make_fake_process(b"", returncode=None)
+
+    with patch(
+        "app.services.scanner.asyncio.create_subprocess_exec",
+        return_value=fake_process,
+    ), patch("asyncio.wait_for", side_effect=TimeoutError):
+        await _execute_scan(db_session, scan_id)
+
+    result = await db_session.execute(
+        select(ScanResult).where(ScanResult.id == scan_id)
+    )
+    scan = result.scalar_one()
+
+    assert scan.scan_status == "failed"
+    assert scan.completed_at is not None
+    fake_process.kill.assert_called_once()
