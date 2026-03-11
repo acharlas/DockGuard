@@ -15,25 +15,39 @@ chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 mkdir -p /opt/dockguard
 cat > /opt/dockguard/docker-compose.yml <<'COMPOSE'
 services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+
   backend:
     image: ${backend_image}
+    restart: unless-stopped
     ports:
       - "80:8000"
     environment:
       DATABASE_URL: ${database_url}
       CORS_ORIGINS: '["*"]'
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - redis
     command: >
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
   frontend:
     image: ${frontend_image}
+    restart: unless-stopped
     ports:
       - "443:3000"
     environment:
       API_URL: http://backend:8000
     depends_on:
       - backend
+
+volumes:
+  redisdata:
 COMPOSE
 
 cd /opt/dockguard

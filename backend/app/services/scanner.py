@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.db.session import async_session
 from app.models.scan import ScanResult
+from app.services.cache import cache_scan_result
 from app.services.metrics import (
     active_scans,
     scan_duration_seconds,
@@ -107,6 +108,7 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
         scan.summary = compute_summary(report)
         scan.scan_status = "completed"
         scan.completed_at = datetime.now(timezone.utc)
+        await cache_scan_result(scan.image_name, scan.id)
 
         for severity, count in scan.summary.items():
             if count > 0:

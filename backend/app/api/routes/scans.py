@@ -16,6 +16,7 @@ from app.schemas.scan import (
     TopCve,
     TopImage,
 )
+from app.services.cache import get_cached_scan_id
 from app.services.scanner import cancel_scan, run_scan
 from app.services.trivy_parser import parse_vulnerabilities
 
@@ -24,6 +25,14 @@ router = APIRouter()
 
 @router.post("/scans", response_model=ScanOut, status_code=202)
 async def create_scan(body: ScanCreate, db: AsyncSession = Depends(get_db)):
+    # Return cached result if available (same image scanned within 10 min)
+    cached_id = await get_cached_scan_id(body.image)
+    if cached_id is not None:
+        result = await db.execute(select(ScanResult).where(ScanResult.id == cached_id))
+        cached = result.scalar_one_or_none()
+        if cached and cached.scan_status == "completed":
+            return cached
+
     scan = ScanResult(image_name=body.image, scan_status="pending")
     db.add(scan)
     await db.commit()

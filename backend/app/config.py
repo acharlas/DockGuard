@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000"]
     trivy_timeout: int = 300
     max_concurrent_scans: int = 3
+    redis_url: str | None = None  # Optional — cache disabled when absent
 
     model_config = {"env_file": ".env"}
 
