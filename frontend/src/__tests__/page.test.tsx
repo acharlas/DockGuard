@@ -84,21 +84,24 @@ test("renders scan form with input and button", () => {
 test("submits scan and displays vulnerability table after completion", async () => {
   const user = userEvent.setup();
 
-  let fetchCall = 0;
-  global.fetch = jest.fn(() => {
-    fetchCall++;
-    // First call: POST /scans
-    if (fetchCall === 1) {
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve(mockScanResponse),
-      });
+  const mockStats = {
+    total_scans: 0,
+    completed_scans: 0,
+    failed_scans: 0,
+    severity_breakdown: { critical: 0, high: 0, medium: 0, low: 0 },
+    top_cves: [],
+    top_images: [],
+  };
+
+  global.fetch = jest.fn((url: string, options?: RequestInit) => {
+    if (url === "/api/v1/stats") {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockStats) });
     }
-    // Second call: GET /scans/1 (polling returns completed)
-    return Promise.resolve({
-      ok: true,
-      json: () => Promise.resolve(mockScanDetail),
-    });
+    if (options?.method === "POST") {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanResponse) });
+    }
+    // GET /api/v1/scans/:id — polling
+    return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
   }) as jest.Mock;
 
   render(<Dashboard />);

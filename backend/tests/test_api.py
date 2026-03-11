@@ -152,7 +152,12 @@ async def test_stats_empty(client: AsyncClient):
     assert data["total_scans"] == 0
     assert data["completed_scans"] == 0
     assert data["failed_scans"] == 0
-    assert data["severity_breakdown"] == {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    assert data["severity_breakdown"] == {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+    }
     assert data["top_cves"] == []
     assert data["top_images"] == []
 

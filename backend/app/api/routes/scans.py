@@ -91,7 +91,9 @@ async def cancel_scan_endpoint(scan_id: int, db: AsyncSession = Depends(get_db))
 
 @router.get("/stats", response_model=StatsOut)
 async def get_stats(db: AsyncSession = Depends(get_db)):
-    total = (await db.execute(select(func.count()).select_from(ScanResult))).scalar() or 0
+    total = (
+        await db.execute(select(func.count()).select_from(ScanResult))
+    ).scalar() or 0
     completed = (
         await db.execute(
             select(func.count())
@@ -141,7 +143,12 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
         failed_scans=failed,
         severity_breakdown=severity,
         top_cves=[
-            TopCve(vuln_id=k, count=v["count"], severity=v["severity"], title=v["title"])
+            TopCve(
+                vuln_id=k,
+                count=v["count"],
+                severity=v["severity"],
+                title=v["title"],
+            )
             for k, v in top_cves
         ],
         top_images=[TopImage(image_name=k, scan_count=v) for k, v in top_images],
