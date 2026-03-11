@@ -1,9 +1,6 @@
 import asyncio
 import json
 import logging
-import os
-import shutil
-import tempfile
 import time
 from datetime import datetime, timezone
 
@@ -71,14 +68,6 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
 
     active_scans.inc()
     started = time.monotonic()
-    # Give each scan its own temp cache dir so Trivy's fanal (image-layer)
-    # cache lock doesn't cause contention between concurrent scans.
-    # Symlink the shared DB dir so --skip-db-update works without re-downloading.
-    trivy_db_dir = "/root/.cache/trivy/db"
-    cache_dir = tempfile.mkdtemp(prefix=f"trivy-scan-{scan_id}-")
-    db_link = os.path.join(cache_dir, "db")
-    if os.path.isdir(trivy_db_dir):
-        os.symlink(trivy_db_dir, db_link)
     try:
         process = await asyncio.create_subprocess_exec(
             "trivy",
@@ -88,9 +77,6 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
             "--no-progress",
             "--scanners",
             "vuln",
-            "--skip-db-update",
-            "--cache-dir",
-            cache_dir,
             scan.image_name,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -145,6 +131,5 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
         active_scans.dec()
         scan_duration_seconds.observe(time.monotonic() - started)
         scans_total.labels(status=scan.scan_status).inc()
-        shutil.rmtree(cache_dir, ignore_errors=True)
 
     await db.commit()

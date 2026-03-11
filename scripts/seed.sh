@@ -46,18 +46,6 @@ for i in $(seq 1 12); do
   sleep 5
 done
 
-# ─── pre-warm Trivy DB ───────────────────────────────────────────────────────
-# On first run the DB download can take 2-3 minutes. Do it once upfront so
-# all scans share the cached DB and don't race to download it simultaneously.
-
-bold "\nPre-warming Trivy vulnerability database (first run may take ~2 min)..."
-COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.dev.yml}"
-if docker compose -f "$COMPOSE_FILE" exec -T backend trivy image --download-db-only --quiet 2>/dev/null; then
-  green "Trivy DB ready."
-else
-  yellow "Could not pre-warm Trivy DB via docker compose exec — scans will download it on demand."
-fi
-
 # ─── launch scans ────────────────────────────────────────────────────────────
 
 declare -A SCAN_IDS
