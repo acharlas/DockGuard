@@ -1,5 +1,7 @@
 # DockGuard — Fiche MVP (5 jours)
 
+[![CI/CD](https://github.com/acharlas/DockGuard/actions/workflows/ci.yml/badge.svg)](https://github.com/acharlas/DockGuard/actions/workflows/ci.yml)
+
 > Dashboard de scan de sécurité pour images Docker + pipeline DevSecOps complet.
 > L'infrastructure **est** le produit — chaque couche démontre une compétence DevOps/DevSecOps.
 > Principe : **chaque jour se termine avec un système fonctionnel end-to-end.**

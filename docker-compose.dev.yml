@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: dockguard
+      POSTGRES_PASSWORD: dockguard
+      POSTGRES_DB: dockguard
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dockguard"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      target: dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/tests:/app/tests
+      - ./backend/alembic:/app/alembic
+      - ./backend/alembic.ini:/app/alembic.ini
+      - trivycache:/root/.cache/trivy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://dockguard:dockguard@postgres:5432/dockguard
+      CORS_ORIGINS: '["http://localhost:3000"]'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  frontend:
+    build:
+      context: ./frontend
+      target: builder
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/jest.config.js:/app/jest.config.js
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+    environment:
+      API_URL: http://backend:8000
+    depends_on:
+      - backend
+    command: npm run dev
+
+volumes:
+  pgdata:
+  trivycache:
