@@ -53,6 +53,7 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
         process = await asyncio.create_subprocess_exec(
             "trivy", "image", "--format", "json", "--quiet",
             "--scanners", "vuln",
+            "--skip-db-update",
             scan.image_name,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
