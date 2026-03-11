@@ -60,3 +60,24 @@ class ScanListOut(BaseModel):
     total: int
     page: int
     size: int
+
+
+class TopCve(BaseModel):
+    vuln_id: str
+    count: int
+    severity: str
+    title: str
+
+
+class TopImage(BaseModel):
+    image_name: str
+    scan_count: int
+
+
+class StatsOut(BaseModel):
+    total_scans: int
+    completed_scans: int
+    failed_scans: int
+    severity_breakdown: ScanSummary
+    top_cves: list[TopCve]
+    top_images: list[TopImage]

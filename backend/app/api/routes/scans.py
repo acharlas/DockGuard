@@ -12,6 +12,9 @@ from app.schemas.scan import (
     ScanDetailOut,
     ScanListOut,
     ScanOut,
+    StatsOut,
+    TopCve,
+    TopImage,
 )
 from app.services.scanner import cancel_scan, run_scan
 from app.services.trivy_parser import parse_vulnerabilities
@@ -84,6 +87,65 @@ async def cancel_scan_endpoint(scan_id: int, db: AsyncSession = Depends(get_db))
     await db.commit()
     await db.refresh(scan)
     return scan
+
+
+@router.get("/stats", response_model=StatsOut)
+async def get_stats(db: AsyncSession = Depends(get_db)):
+    total = (await db.execute(select(func.count()).select_from(ScanResult))).scalar() or 0
+    completed = (
+        await db.execute(
+            select(func.count())
+            .select_from(ScanResult)
+            .where(ScanResult.scan_status == "completed")
+        )
+    ).scalar() or 0
+    failed = (
+        await db.execute(
+            select(func.count())
+            .select_from(ScanResult)
+            .where(ScanResult.scan_status == "failed")
+        )
+    ).scalar() or 0
+
+    result = await db.execute(
+        select(ScanResult).where(ScanResult.scan_status == "completed")
+    )
+    scans = result.scalars().all()
+
+    severity: dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    cve_map: dict[str, dict] = {}
+    image_counts: dict[str, int] = {}
+
+    for scan in scans:
+        if scan.summary:
+            for key in severity:
+                severity[key] += scan.summary.get(key, 0)
+        if scan.raw_report:
+            for vuln in parse_vulnerabilities(scan.raw_report):
+                vid = vuln["vuln_id"]
+                if vid not in cve_map:
+                    cve_map[vid] = {
+                        "count": 0,
+                        "severity": vuln["severity"],
+                        "title": vuln["title"],
+                    }
+                cve_map[vid]["count"] += 1
+        image_counts[scan.image_name] = image_counts.get(scan.image_name, 0) + 1
+
+    top_cves = sorted(cve_map.items(), key=lambda x: x[1]["count"], reverse=True)[:10]
+    top_images = sorted(image_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    return StatsOut(
+        total_scans=total,
+        completed_scans=completed,
+        failed_scans=failed,
+        severity_breakdown=severity,
+        top_cves=[
+            TopCve(vuln_id=k, count=v["count"], severity=v["severity"], title=v["title"])
+            for k, v in top_cves
+        ],
+        top_images=[TopImage(image_name=k, scan_count=v) for k, v in top_images],
+    )
 
 
 @router.get("/scans/{scan_id}", response_model=ScanDetailOut)

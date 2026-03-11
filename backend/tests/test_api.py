@@ -142,3 +142,45 @@ async def test_cancel_completed_scan_returns_409(
 async def test_cancel_nonexistent_scan_returns_404(client: AsyncClient):
     resp = await client.post("/api/v1/scans/9999/cancel")
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_stats_empty(client: AsyncClient):
+    resp = await client.get("/api/v1/stats")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_scans"] == 0
+    assert data["completed_scans"] == 0
+    assert data["failed_scans"] == 0
+    assert data["severity_breakdown"] == {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    assert data["top_cves"] == []
+    assert data["top_images"] == []
+
+
+@pytest.mark.asyncio
+async def test_stats_aggregates_completed_scans(
+    client: AsyncClient, db_session: AsyncSession, trivy_report
+):
+    for image in ("nginx:latest", "nginx:latest", "alpine:3.18"):
+        scan = ScanResult(
+            image_name=image,
+            scan_status="completed",
+            summary={"critical": 1, "high": 1, "medium": 1, "low": 1},
+            raw_report=trivy_report,
+        )
+        db_session.add(scan)
+    db_session.add(ScanResult(image_name="bad:image", scan_status="failed"))
+    await db_session.commit()
+
+    resp = await client.get("/api/v1/stats")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["total_scans"] == 4
+    assert data["completed_scans"] == 3
+    assert data["failed_scans"] == 1
+    assert data["severity_breakdown"]["critical"] == 3
+    assert data["severity_breakdown"]["high"] == 3
+    assert len(data["top_cves"]) == 4  # fixture has 4 unique CVEs
+    assert data["top_cves"][0]["count"] == 3  # each CVE seen in 3 scans
+    assert data["top_images"][0] == {"image_name": "nginx:latest", "scan_count": 2}
