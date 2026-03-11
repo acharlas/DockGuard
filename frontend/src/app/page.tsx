@@ -107,21 +107,19 @@ export default function Dashboard() {
 
       {/* Scan status */}
       {scan && (
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm text-gray-500">{scan.image_name}</span>
-            {(scan.scan_status === "completed" ||
-              scan.scan_status === "failed" ||
-              scan.scan_status === "cancelled") && (
-              <StatusBadge status={scan.scan_status} />
-            )}
-          </div>
+        <div className="flex items-center gap-3 mb-6">
+          <span className="text-sm text-gray-500">{scan.image_name} &mdash;</span>
+          <StatusBadge status={scan.scan_status} />
           {(scan.scan_status === "pending" || scan.scan_status === "running") && (
-            <ScanProgress
-              status={scan.scan_status}
-              startedAt={scan.started_at}
-              onCancel={handleCancel}
-            />
+            <>
+              <ElapsedTimer startedAt={scan.started_at} />
+              <button
+                onClick={handleCancel}
+                className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+              >
+                Cancel
+              </button>
+            </>
           )}
         </div>
       )}
@@ -232,58 +230,25 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-const SCAN_TIMEOUT_S = 300;
-
-function computePct(startedAt: string): number {
-  const elapsed = (Date.now() - Date.parse(startedAt)) / 1000;
-  return Math.min(Math.round((elapsed / SCAN_TIMEOUT_S) * 100), 95);
-}
-
-function ScanProgress({
-  status,
-  startedAt,
-  onCancel,
-}: {
-  status: string;
-  startedAt: string;
-  onCancel: () => void;
-}) {
-  const [pct, setPct] = useState(() => computePct(startedAt));
+function ElapsedTimer({ startedAt }: { startedAt: string }) {
+  const [elapsed, setElapsed] = useState(
+    Math.floor((Date.now() - Date.parse(startedAt)) / 1000)
+  );
 
   useEffect(() => {
-    if (status !== "running") return;
-    const id = setInterval(() => setPct(computePct(startedAt)), 1000);
+    const id = setInterval(
+      () => setElapsed(Math.floor((Date.now() - Date.parse(startedAt)) / 1000)),
+      1000
+    );
     return () => clearInterval(id);
-  }, [status, startedAt]);
+  }, [startedAt]);
 
-  const isPending = status === "pending";
-
+  const m = Math.floor(elapsed / 60);
+  const s = elapsed % 60;
   return (
-    <div>
-      <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
-        <span>{isPending ? "Queued, waiting to start…" : "Scanning image…"}</span>
-        <div className="flex items-center gap-3">
-          {!isPending && <span>{pct}%</span>}
-          <button
-            onClick={onCancel}
-            className="text-gray-400 hover:text-red-500 transition-colors"
-            title="Cancel scan"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-1000 ease-linear ${
-            isPending
-              ? "w-[3%] bg-yellow-400 animate-pulse"
-              : "bg-blue-500"
-          }`}
-          style={!isPending ? { width: `${pct}%` } : undefined}
-        />
-      </div>
-    </div>
+    <span className="text-xs text-gray-400 font-mono">
+      {m}:{String(s).padStart(2, "0")}
+    </span>
   );
 }
 
