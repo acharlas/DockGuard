@@ -47,7 +47,7 @@ services:
       - ./frontend/jest.config.js:/app/jest.config.js
       - ./frontend/tsconfig.json:/app/tsconfig.json
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      API_URL: http://backend:8000
     depends_on:
       - backend
     command: npm run dev

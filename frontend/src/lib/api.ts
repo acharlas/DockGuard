@@ -1,5 +1,3 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
 export interface Vulnerability {
   vuln_id: string;
   package_name: string;
@@ -31,7 +29,7 @@ export interface ScanDetail extends Scan {
 }
 
 export async function createScan(image: string): Promise<Scan> {
-  const res = await fetch(`${API_URL}/api/v1/scans`, {
+  const res = await fetch("/api/v1/scans", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ image }),
@@ -41,7 +39,7 @@ export async function createScan(image: string): Promise<Scan> {
 }
 
 export async function getScan(id: number): Promise<ScanDetail> {
-  const res = await fetch(`${API_URL}/api/v1/scans/${id}`);
+  const res = await fetch(`/api/v1/scans/${id}`);
   if (!res.ok) throw new Error(`Failed to fetch scan: ${res.status}`);
   return res.json();
 }
