@@ -14,6 +14,8 @@ from app.services.trivy_parser import compute_summary
 logger = logging.getLogger(__name__)
 
 _scan_semaphore = asyncio.Semaphore(settings.max_concurrent_scans)
+# In-process state — requires single uvicorn worker (default).
+# Multi-worker deployments would need an external store (e.g. Redis) for cancellation.
 _running_processes: dict[int, asyncio.subprocess.Process] = {}
 _cancelled_scan_ids: set[int] = set()
 

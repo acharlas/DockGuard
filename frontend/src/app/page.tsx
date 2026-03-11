@@ -25,8 +25,6 @@ export default function Dashboard() {
       setScan(data);
       if (data.scan_status === "pending" || data.scan_status === "running") {
         setTimeout(() => pollScan(id), 2000);
-      } else if (data.scan_status === "cancelled") {
-        setLoading(false);
       } else {
         setLoading(false);
       }
