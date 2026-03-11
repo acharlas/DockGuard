@@ -117,3 +117,34 @@ async def test_get_scan_detail(
 async def test_get_scan_not_found(client: AsyncClient):
     resp = await client.get("/api/v1/scans/9999")
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_cancel_pending_scan(client: AsyncClient, db_session: AsyncSession):
+    scan = ScanResult(image_name="nginx:latest", scan_status="pending")
+    db_session.add(scan)
+    await db_session.commit()
+    await db_session.refresh(scan)
+
+    resp = await client.post(f"/api/v1/scans/{scan.id}/cancel")
+    assert resp.status_code == 200
+    assert resp.json()["scan_status"] == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_cancel_completed_scan_returns_409(
+    client: AsyncClient, db_session: AsyncSession
+):
+    scan = ScanResult(image_name="nginx:latest", scan_status="completed")
+    db_session.add(scan)
+    await db_session.commit()
+    await db_session.refresh(scan)
+
+    resp = await client.post(f"/api/v1/scans/{scan.id}/cancel")
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_cancel_nonexistent_scan_returns_404(client: AsyncClient):
+    resp = await client.post("/api/v1/scans/9999/cancel")
+    assert resp.status_code == 404

@@ -43,3 +43,9 @@ export async function getScan(id: number): Promise<ScanDetail> {
   if (!res.ok) throw new Error(`Failed to fetch scan: ${res.status}`);
   return res.json();
 }
+
+export async function cancelScan(id: number): Promise<Scan> {
+  const res = await fetch(`/api/v1/scans/${id}/cancel`, { method: "POST" });
+  if (!res.ok) throw new Error(`Failed to cancel scan: ${res.status}`);
+  return res.json();
+}

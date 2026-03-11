@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -13,7 +13,7 @@ from app.schemas.scan import (
     ScanListOut,
     ScanOut,
 )
-from app.services.scanner import run_scan
+from app.services.scanner import cancel_scan, run_scan
 from app.services.trivy_parser import parse_vulnerabilities
 
 router = APIRouter()
@@ -59,6 +59,30 @@ async def list_scans(
     scans = result.scalars().all()
 
     return ScanListOut(items=scans, total=total, page=page, size=size)
+
+
+@router.post("/scans/{scan_id}/cancel", response_model=ScanOut)
+async def cancel_scan_endpoint(scan_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(ScanResult).where(ScanResult.id == scan_id))
+    scan = result.scalar_one_or_none()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    if scan.scan_status not in ("pending", "running"):
+        raise HTTPException(
+            status_code=409, detail=f"Cannot cancel a scan with status '{scan.scan_status}'"
+        )
+
+    await cancel_scan(scan_id)
+
+    # For pending scans the process hasn't started yet — update DB directly.
+    # For running scans the exception handler in _execute_scan will update it,
+    # but we set it here too so the response is immediate.
+    scan.scan_status = "cancelled"
+    scan.completed_at = datetime.now(timezone.utc)
+
+    await db.commit()
+    await db.refresh(scan)
+    return scan
 
 
 @router.get("/scans/{scan_id}", response_model=ScanDetailOut)

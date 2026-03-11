@@ -14,6 +14,15 @@ from app.services.trivy_parser import compute_summary
 logger = logging.getLogger(__name__)
 
 _scan_semaphore = asyncio.Semaphore(settings.max_concurrent_scans)
+_running_processes: dict[int, asyncio.subprocess.Process] = {}
+_cancelled_scan_ids: set[int] = set()
+
+
+async def cancel_scan(scan_id: int) -> None:
+    proc = _running_processes.get(scan_id)
+    if proc is not None and proc.returncode is None:
+        _cancelled_scan_ids.add(scan_id)
+        proc.kill()
 
 
 async def run_scan(scan_id: int) -> None:
@@ -31,6 +40,10 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
         logger.error("Scan %d not found", scan_id)
         return
 
+    if scan.scan_status == "cancelled" or scan_id in _cancelled_scan_ids:
+        _cancelled_scan_ids.discard(scan_id)
+        return
+
     scan.scan_status = "running"
     await db.commit()
 
@@ -42,10 +55,14 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(
-            process.communicate(),
-            timeout=settings.trivy_timeout,
-        )
+        _running_processes[scan_id] = process
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=settings.trivy_timeout,
+            )
+        finally:
+            _running_processes.pop(scan_id, None)
 
         if process.returncode != 0:
             raise RuntimeError(
@@ -65,8 +82,12 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
         scan.completed_at = datetime.now(timezone.utc)
 
     except Exception:
-        logger.exception("Scan %d failed", scan_id)
-        scan.scan_status = "failed"
+        if scan_id in _cancelled_scan_ids:
+            _cancelled_scan_ids.discard(scan_id)
+            scan.scan_status = "cancelled"
+        else:
+            logger.exception("Scan %d failed", scan_id)
+            scan.scan_status = "failed"
         scan.completed_at = datetime.now(timezone.utc)
 
     await db.commit()

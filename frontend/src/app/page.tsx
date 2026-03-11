@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { createScan, getScan, ScanDetail, Vulnerability } from "@/lib/api";
+import { cancelScan, createScan, getScan, ScanDetail, Vulnerability } from "@/lib/api";
 
 const SEVERITY_COLORS: Record<string, string> = {
   CRITICAL: "#dc2626",
@@ -25,6 +25,8 @@ export default function Dashboard() {
       setScan(data);
       if (data.scan_status === "pending" || data.scan_status === "running") {
         setTimeout(() => pollScan(id), 2000);
+      } else if (data.scan_status === "cancelled") {
+        setLoading(false);
       } else {
         setLoading(false);
       }
@@ -49,6 +51,17 @@ export default function Dashboard() {
     } catch {
       setError("Failed to start scan. Check the image name.");
       setLoading(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!scan) return;
+    try {
+      const updated = await cancelScan(scan.id);
+      setScan({ ...updated, vulnerabilities: [] });
+      setLoading(false);
+    } catch {
+      setError("Failed to cancel scan.");
     }
   };
 
@@ -97,12 +110,18 @@ export default function Dashboard() {
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm text-gray-500">{scan.image_name}</span>
-            {(scan.scan_status === "completed" || scan.scan_status === "failed") && (
+            {(scan.scan_status === "completed" ||
+              scan.scan_status === "failed" ||
+              scan.scan_status === "cancelled") && (
               <StatusBadge status={scan.scan_status} />
             )}
           </div>
           {(scan.scan_status === "pending" || scan.scan_status === "running") && (
-            <ScanProgress status={scan.scan_status} startedAt={scan.started_at} />
+            <ScanProgress
+              status={scan.scan_status}
+              startedAt={scan.started_at}
+              onCancel={handleCancel}
+            />
           )}
         </div>
       )}
@@ -201,6 +220,7 @@ function StatusBadge({ status }: { status: string }) {
     running: "bg-blue-100 text-blue-800",
     completed: "bg-green-100 text-green-800",
     failed: "bg-red-100 text-red-800",
+    cancelled: "bg-gray-100 text-gray-600",
   };
 
   return (
@@ -219,7 +239,15 @@ function computePct(startedAt: string): number {
   return Math.min(Math.round((elapsed / SCAN_TIMEOUT_S) * 100), 95);
 }
 
-function ScanProgress({ status, startedAt }: { status: string; startedAt: string }) {
+function ScanProgress({
+  status,
+  startedAt,
+  onCancel,
+}: {
+  status: string;
+  startedAt: string;
+  onCancel: () => void;
+}) {
   const [pct, setPct] = useState(() => computePct(startedAt));
 
   useEffect(() => {
@@ -232,9 +260,18 @@ function ScanProgress({ status, startedAt }: { status: string; startedAt: string
 
   return (
     <div>
-      <div className="flex justify-between text-xs text-gray-500 mb-1">
+      <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
         <span>{isPending ? "Queued, waiting to start…" : "Scanning image…"}</span>
-        {!isPending && <span>{pct}%</span>}
+        <div className="flex items-center gap-3">
+          {!isPending && <span>{pct}%</span>}
+          <button
+            onClick={onCancel}
+            className="text-gray-400 hover:text-red-500 transition-colors"
+            title="Cancel scan"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
         <div
