@@ -81,11 +81,11 @@ resource "aws_security_group" "ec2" {
   }
 
   ingress {
-    description = "SSH"
+    description = "SSH — restrict to your IP in production"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.ssh_allowed_cidr]
   }
 
   egress {
@@ -175,49 +175,11 @@ resource "aws_instance" "app" {
   key_name               = aws_key_pair.main.key_name
 
   # Bootstrap: install Docker + Compose, pull GHCR images, start stack
-  user_data = <<-EOF
-    #!/bin/bash
-    set -euo pipefail
-
-    # Install Docker
-    dnf install -y docker
-    systemctl enable --now docker
-
-    # Install Docker Compose v2 plugin
-    mkdir -p /usr/local/lib/docker/cli-plugins
-    curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" \
-      -o /usr/local/lib/docker/cli-plugins/docker-compose
-    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-
-    # Write docker-compose.yml for production
-    mkdir -p /opt/dockguard
-    cat > /opt/dockguard/docker-compose.yml <<COMPOSE
-    services:
-      backend:
-        image: ${var.ghcr_image_backend}
-        ports:
-          - "80:8000"
-        environment:
-          DATABASE_URL: postgresql+asyncpg://dockguard:${var.db_password}@${aws_db_instance.postgres.address}:5432/dockguard
-          CORS_ORIGINS: '["http://$(curl -sf http://169.254.169.254/latest/meta-data/public-ipv4)"]'
-        command: >
-          sh -c "alembic upgrade head &&
-                 uvicorn app.main:app --host 0.0.0.0 --port 8000"
-
-      frontend:
-        image: ${var.ghcr_image_frontend}
-        ports:
-          - "443:3000"
-        environment:
-          API_URL: http://backend:8000
-        depends_on:
-          - backend
-    COMPOSE
-
-    cd /opt/dockguard
-    docker compose pull
-    docker compose up -d
-  EOF
+  user_data = templatefile("${path.module}/user_data.sh.tftpl", {
+    backend_image  = var.ghcr_image_backend
+    frontend_image = var.ghcr_image_frontend
+    database_url   = "postgresql+asyncpg://dockguard:${var.db_password}@${aws_db_instance.postgres.address}:5432/dockguard"
+  })
 
   tags = { Name = "${var.project}-app" }
 }

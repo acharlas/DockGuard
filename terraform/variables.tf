@@ -39,6 +39,12 @@ variable "ssh_public_key" {
   type        = string
 }
 
+variable "ssh_allowed_cidr" {
+  description = "CIDR block allowed to SSH into the EC2 instance (restrict to your IP in production)"
+  type        = string
+  default     = "0.0.0.0/0"
+}
+
 variable "ghcr_image_backend" {
   description = "Full GHCR image reference for the backend (e.g. ghcr.io/user/dockguard-backend:latest)"
   type        = string
