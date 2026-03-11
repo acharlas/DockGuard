@@ -48,7 +48,7 @@ jobs:
           cache-dependency-path: backend/pyproject.toml
       - run: pip install -e ".[dev]"
         working-directory: backend
-      - run: python -m pytest --cov --cov-report=term
+      - run: python -m pytest --cov --cov-report=term --cov-fail-under=70
         working-directory: backend
 
   test-frontend:
