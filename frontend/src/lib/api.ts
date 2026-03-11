@@ -49,3 +49,43 @@ export async function cancelScan(id: number): Promise<Scan> {
   if (!res.ok) throw new Error(`Failed to cancel scan: ${res.status}`);
   return res.json();
 }
+
+export interface ScanListOut {
+  items: Scan[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+export async function listScans(page = 1, size = 20): Promise<ScanListOut> {
+  const res = await fetch(`/api/v1/scans?page=${page}&size=${size}`);
+  if (!res.ok) throw new Error(`Failed to list scans: ${res.status}`);
+  return res.json();
+}
+
+export interface TopCve {
+  vuln_id: string;
+  count: number;
+  severity: string;
+  title: string;
+}
+
+export interface TopImage {
+  image_name: string;
+  scan_count: number;
+}
+
+export interface Stats {
+  total_scans: number;
+  completed_scans: number;
+  failed_scans: number;
+  severity_breakdown: ScanSummary;
+  top_cves: TopCve[];
+  top_images: TopImage[];
+}
+
+export async function getStats(): Promise<Stats> {
+  const res = await fetch("/api/v1/stats");
+  if (!res.ok) throw new Error(`Failed to fetch stats: ${res.status}`);
+  return res.json();
+}

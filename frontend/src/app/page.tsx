@@ -2,7 +2,15 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { cancelScan, createScan, getScan, ScanDetail, Vulnerability } from "@/lib/api";
+import {
+  cancelScan,
+  createScan,
+  getScan,
+  getStats,
+  ScanDetail,
+  Stats,
+  Vulnerability,
+} from "@/lib/api";
 
 const SEVERITY_COLORS: Record<string, string> = {
   CRITICAL: "#dc2626",
@@ -18,6 +26,13 @@ export default function Dashboard() {
   const [scan, setScan] = useState<ScanDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
+
+  useEffect(() => {
+    getStats()
+      .then(setStats)
+      .catch(() => {});
+  }, []);
 
   const pollScan = useCallback(async (id: number) => {
     try {
@@ -27,6 +42,9 @@ export default function Dashboard() {
         setTimeout(() => pollScan(id), 2000);
       } else {
         setLoading(false);
+        getStats()
+          .then(setStats)
+          .catch(() => {});
       }
     } catch {
       setError("Failed to fetch scan status");
@@ -76,7 +94,34 @@ export default function Dashboard() {
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">DockGuard</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold">DockGuard</h1>
+        <a href="/scans" className="text-sm text-blue-600 hover:underline">
+          Scan history →
+        </a>
+      </div>
+
+      {/* Stats cards */}
+      {stats && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <StatCard label="Total scans" value={stats.total_scans} />
+          <StatCard
+            label="Completed"
+            value={stats.completed_scans}
+            color="text-green-600"
+          />
+          <StatCard
+            label="Failed"
+            value={stats.failed_scans}
+            color="text-red-600"
+          />
+          <StatCard
+            label="Critical CVEs"
+            value={stats.severity_breakdown.critical}
+            color="text-red-600"
+          />
+        </div>
+      )}
 
       {/* Scan form */}
       <form onSubmit={handleScan} className="flex gap-3 mb-8">
@@ -247,6 +292,23 @@ function ElapsedTimer({ startedAt }: { startedAt: string }) {
     <span className="text-xs text-gray-400 font-mono">
       {m}:{String(s).padStart(2, "0")}
     </span>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  color = "text-gray-900",
+}: {
+  label: string;
+  value: number;
+  color?: string;
+}) {
+  return (
+    <div className="bg-white rounded-xl shadow p-4">
+      <p className="text-xs text-gray-500 mb-1">{label}</p>
+      <p className={`text-2xl font-bold ${color}`}>{value}</p>
+    </div>
   );
 }
 
