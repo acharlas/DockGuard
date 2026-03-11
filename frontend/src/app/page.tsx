@@ -31,7 +31,7 @@ export default function Dashboard() {
   useEffect(() => {
     getStats()
       .then(setStats)
-      .catch(() => {});
+      .catch((e) => console.error("Failed to load stats", e));
   }, []);
 
   const pollScan = useCallback(async (id: number) => {
@@ -44,7 +44,7 @@ export default function Dashboard() {
         setLoading(false);
         getStats()
           .then(setStats)
-          .catch(() => {});
+          .catch((e) => console.error("Failed to load stats", e));
       }
     } catch {
       setError("Failed to fetch scan status");
