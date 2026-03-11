@@ -77,7 +77,6 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
             "--no-progress",
             "--scanners",
             "vuln",
-            "--skip-db-update",
             scan.image_name,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
