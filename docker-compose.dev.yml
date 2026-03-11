@@ -53,6 +53,29 @@ services:
       - backend
     command: npm run dev
 
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    depends_on:
+      - backend
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/grafana.ini:/etc/grafana/grafana.ini
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
 volumes:
   pgdata:
   trivycache:
+  grafana_data:
