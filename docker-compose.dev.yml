@@ -16,11 +16,16 @@ services:
       retries: 5
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      target: dev
     ports:
       - "8000:8000"
     volumes:
       - ./backend/app:/app/app
+      - ./backend/tests:/app/tests
+      - ./backend/alembic:/app/alembic
+      - ./backend/alembic.ini:/app/alembic.ini
     environment:
       DATABASE_URL: postgresql+asyncpg://dockguard:dockguard@postgres:5432/dockguard
       CORS_ORIGINS: '["http://localhost:3000"]'
@@ -34,12 +39,13 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
       target: builder
     ports:
       - "3000:3000"
     volumes:
       - ./frontend/src:/app/src
+      - ./frontend/jest.config.js:/app/jest.config.js
+      - ./frontend/tsconfig.json:/app/tsconfig.json
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
     depends_on:

@@ -5,6 +5,13 @@ COPY pyproject.toml .
 COPY app/ app/
 RUN pip install --no-cache-dir .
 
+FROM builder AS dev
+
+RUN pip install --no-cache-dir ".[dev]"
+COPY tests/ tests/
+COPY alembic/ alembic/
+COPY alembic.ini .
+
 FROM python:3.12-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
