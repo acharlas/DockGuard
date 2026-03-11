@@ -24,5 +24,8 @@ def test_compute_summary(trivy_report):
 
 def test_compute_summary_empty():
     assert compute_summary(None) == {
-        "critical": 0, "high": 0, "medium": 0, "low": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
     }

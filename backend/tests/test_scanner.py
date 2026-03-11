@@ -24,9 +24,7 @@ def _make_fake_process(stdout: bytes, returncode: int | None, stderr: bytes = b"
 
 
 @pytest.mark.asyncio
-async def test_scan_success_transitions(
-    db_session: AsyncSession, trivy_report
-):
+async def test_scan_success_transitions(db_session: AsyncSession, trivy_report):
     scan = ScanResult(image_name="nginx:latest", scan_status="pending")
     db_session.add(scan)
     await db_session.commit()
@@ -93,10 +91,13 @@ async def test_scan_timeout_transitions(db_session: AsyncSession):
 
     fake_process = _make_fake_process(b"", returncode=None)
 
-    with patch(
-        "app.services.scanner.asyncio.create_subprocess_exec",
-        return_value=fake_process,
-    ), patch("asyncio.wait_for", side_effect=TimeoutError):
+    with (
+        patch(
+            "app.services.scanner.asyncio.create_subprocess_exec",
+            return_value=fake_process,
+        ),
+        patch("asyncio.wait_for", side_effect=TimeoutError),
+    ):
         await _execute_scan(db_session, scan_id)
 
     result = await db_session.execute(

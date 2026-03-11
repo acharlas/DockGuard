@@ -10,14 +10,16 @@ def parse_vulnerabilities(raw_report: dict | None) -> list[dict]:
     vulns = []
     for result in raw_report.get("Results", []):
         for v in result.get("Vulnerabilities", []):
-            vulns.append({
-                "vuln_id": v.get("VulnerabilityID", ""),
-                "package_name": v.get("PkgName", ""),
-                "installed_version": v.get("InstalledVersion", ""),
-                "fixed_version": v.get("FixedVersion"),
-                "severity": v.get("Severity", "UNKNOWN"),
-                "title": v.get("Title", ""),
-            })
+            vulns.append(
+                {
+                    "vuln_id": v.get("VulnerabilityID", ""),
+                    "package_name": v.get("PkgName", ""),
+                    "installed_version": v.get("InstalledVersion", ""),
+                    "fixed_version": v.get("FixedVersion"),
+                    "severity": v.get("Severity", "UNKNOWN"),
+                    "title": v.get("Title", ""),
+                }
+            )
     return vulns
 
 

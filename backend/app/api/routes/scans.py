@@ -69,7 +69,8 @@ async def cancel_scan_endpoint(scan_id: int, db: AsyncSession = Depends(get_db))
         raise HTTPException(status_code=404, detail="Scan not found")
     if scan.scan_status not in ("pending", "running"):
         raise HTTPException(
-            status_code=409, detail=f"Cannot cancel a scan with status '{scan.scan_status}'"
+            status_code=409,
+            detail=f"Cannot cancel a scan with status '{scan.scan_status}'",
         )
 
     await cancel_scan(scan_id)

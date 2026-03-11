@@ -19,9 +19,7 @@ async def test_create_scan_returns_202(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_create_scan_rejects_malicious_input(client: AsyncClient):
-    resp = await client.post(
-        "/api/v1/scans", json={"image": "; rm -rf /"}
-    )
+    resp = await client.post("/api/v1/scans", json={"image": "; rm -rf /"})
     assert resp.status_code == 422
 
 
@@ -35,9 +33,7 @@ async def test_list_scans_empty(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_list_scans_with_data(
-    client: AsyncClient, db_session: AsyncSession
-):
+async def test_list_scans_with_data(client: AsyncClient, db_session: AsyncSession):
     db_session.add(ScanResult(image_name="alpine:3.19", scan_status="completed"))
     db_session.add(ScanResult(image_name="nginx:latest", scan_status="pending"))
     await db_session.commit()
@@ -64,9 +60,7 @@ async def test_list_scans_filter_by_status(
 
 
 @pytest.mark.asyncio
-async def test_list_scans_filter_by_date(
-    client: AsyncClient, db_session: AsyncSession
-):
+async def test_list_scans_filter_by_date(client: AsyncClient, db_session: AsyncSession):
     old = ScanResult(
         image_name="old:1.0",
         scan_status="completed",

@@ -10,9 +10,7 @@ class Base(DeclarativeBase):
 
 class ScanResult(Base):
     __tablename__ = "scan_results"
-    __table_args__ = (
-        Index("idx_raw_report", "raw_report", postgresql_using="gin"),
-    )
+    __table_args__ = (Index("idx_raw_report", "raw_report", postgresql_using="gin"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     image_name: Mapped[str] = mapped_column(String(255))

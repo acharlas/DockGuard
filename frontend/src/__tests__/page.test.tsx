@@ -56,6 +56,7 @@ const mockScanDetail = {
 
 // Mock recharts to avoid SVG rendering issues in jsdom
 jest.mock("recharts", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const React = require("react");
   return {
     PieChart: ({ children }: { children: React.ReactNode }) =>

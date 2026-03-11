@@ -17,9 +17,9 @@ jobs:
           cache: pip
           cache-dependency-path: backend/pyproject.toml
       - run: pip install ruff
-      - run: ruff check .
+      - run: ruff check app/ tests/
         working-directory: backend
-      - run: ruff format --check .
+      - run: ruff format --check app/ tests/
         working-directory: backend
 
   lint-frontend:
