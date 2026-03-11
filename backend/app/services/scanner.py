@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -9,6 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.db.session import async_session
 from app.models.scan import ScanResult
+from app.services.metrics import (
+    active_scans,
+    scan_duration_seconds,
+    scans_total,
+    vulnerabilities_found,
+)
 from app.services.trivy_parser import compute_summary
 
 logger = logging.getLogger(__name__)
@@ -58,6 +65,8 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
     scan.scan_status = "running"
     await db.commit()
 
+    active_scans.inc()
+    started = time.monotonic()
     try:
         process = await asyncio.create_subprocess_exec(
             "trivy",
@@ -99,6 +108,10 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
         scan.scan_status = "completed"
         scan.completed_at = datetime.now(timezone.utc)
 
+        for severity, count in scan.summary.items():
+            if count > 0:
+                vulnerabilities_found.labels(severity=severity).inc(count)
+
     except TimeoutError:
         logger.error("Scan %d timed out after %ds", scan_id, settings.trivy_timeout)
         scan.scan_status = "failed"
@@ -112,5 +125,10 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
             logger.exception("Scan %d failed", scan_id)
             scan.scan_status = "failed"
         scan.completed_at = datetime.now(timezone.utc)
+
+    finally:
+        active_scans.dec()
+        scan_duration_seconds.observe(time.monotonic() - started)
+        scans_total.labels(status=scan.scan_status).inc()
 
     await db.commit()
