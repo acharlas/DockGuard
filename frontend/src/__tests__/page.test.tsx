@@ -126,9 +126,9 @@ test("submits scan and displays vulnerability table after completion", async () 
   expect(screen.getByText("libssl3")).toBeInTheDocument();
   expect(screen.getByText("libcurl4")).toBeInTheDocument();
 
-  // Check severity badges
-  expect(screen.getByText("CRITICAL")).toBeInTheDocument();
-  expect(screen.getByText("HIGH")).toBeInTheDocument();
+  // Check severity badges (may appear in both table and chart legend)
+  expect(screen.getAllByText("CRITICAL").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("HIGH").length).toBeGreaterThan(0);
 
   // Check "No fix" shows for null fixed_version
   expect(screen.getByText("No fix")).toBeInTheDocument();
