@@ -10,6 +10,9 @@ RUN npm run build
 
 FROM node:22-alpine AS runtime
 
+# Apply OS security patches
+RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
+
 WORKDIR /app
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static

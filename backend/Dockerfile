@@ -7,6 +7,9 @@ RUN pip install --no-cache-dir .
 
 FROM python:3.12-slim AS runtime
 
+# Apply OS security patches before installing anything else
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
         wget apt-transport-https gnupg lsb-release \
     && wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
