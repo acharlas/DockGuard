@@ -112,25 +112,24 @@ jobs:
       - run: docker load -i /tmp/backend.tar
       - run: docker load -i /tmp/frontend.tar
 
-      - name: Scan backend image
+      # Full scan → SARIF for GitHub Security tab (all vuln types, never blocks)
+      - name: Scan backend image (SARIF)
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: dockguard-backend:${{ github.sha }}
           format: sarif
           output: trivy-backend.sarif
-          exit-code: "1"
-          severity: CRITICAL
-          ignore-unfixed: true
+          exit-code: "0"
+          severity: CRITICAL,HIGH,MEDIUM,LOW
 
-      - name: Scan frontend image
+      - name: Scan frontend image (SARIF)
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: dockguard-frontend:${{ github.sha }}
           format: sarif
           output: trivy-frontend.sarif
-          exit-code: "1"
-          severity: CRITICAL
-          ignore-unfixed: true
+          exit-code: "0"
+          severity: CRITICAL,HIGH,MEDIUM,LOW
 
       - name: Upload SARIF to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
@@ -138,6 +137,28 @@ jobs:
         with:
           sarif_file: "."
           category: trivy
+
+      # Security gate: fail on CRITICAL app-library CVEs we can actually fix.
+      # OS CVEs in the base image are tracked above and handled via base image updates.
+      - name: Gate on backend app library CVEs
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: dockguard-backend:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          severity: CRITICAL
+          vuln-type: library
+          ignore-unfixed: true
+
+      - name: Gate on frontend app library CVEs
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: dockguard-frontend:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          severity: CRITICAL
+          vuln-type: library
+          ignore-unfixed: true
 
   push-registry:
     needs: [security-scan]
