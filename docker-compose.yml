@@ -17,6 +17,8 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
+    volumes:
+      - trivycache:/root/.cache/trivy
     environment:
       DATABASE_URL: postgresql+asyncpg://dockguard:dockguard@postgres:5432/dockguard
       CORS_ORIGINS: '["http://localhost:3000"]'
@@ -41,3 +43,4 @@ services:
 
 volumes:
   pgdata:
+  trivycache:

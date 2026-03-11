@@ -36,7 +36,9 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
 
     try:
         process = await asyncio.create_subprocess_exec(
-            "trivy", "image", "--format", "json", "--quiet", scan.image_name,
+            "trivy", "image", "--format", "json", "--quiet",
+            "--scanners", "vuln",
+            scan.image_name,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
