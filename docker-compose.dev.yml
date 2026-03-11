@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     ports:
       - "5432:5432"
     environment:
@@ -19,6 +20,7 @@ services:
     build:
       context: ./backend
       target: dev
+    restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
@@ -41,6 +43,7 @@ services:
     build:
       context: ./frontend
       target: builder
+    restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:
@@ -55,6 +58,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v3.2.1
+    restart: unless-stopped
     ports:
       - "9090:9090"
     volumes:
@@ -66,6 +70,7 @@ services:
 
   grafana:
     image: grafana/grafana:11.5.2
+    restart: unless-stopped
     ports:
       - "3001:3000"
     volumes:
