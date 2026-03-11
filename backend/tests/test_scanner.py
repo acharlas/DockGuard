@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.scan import ScanResult
-from app.services.scanner import _execute_scan
+from app.services.scanner import _cancelled_scan_ids, _execute_scan
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -108,3 +108,57 @@ async def test_scan_timeout_transitions(db_session: AsyncSession):
     assert scan.scan_status == "failed"
     assert scan.completed_at is not None
     fake_process.kill.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_scan_cancelled_before_start(db_session: AsyncSession):
+    """When scan_id is in _cancelled_scan_ids before execution, it exits early."""
+    scan = ScanResult(image_name="nginx:latest", scan_status="pending")
+    db_session.add(scan)
+    await db_session.commit()
+    await db_session.refresh(scan)
+    scan_id = scan.id
+
+    _cancelled_scan_ids.add(scan_id)
+    try:
+        await _execute_scan(db_session, scan_id)
+    finally:
+        _cancelled_scan_ids.discard(scan_id)
+
+    result = await db_session.execute(
+        select(ScanResult).where(ScanResult.id == scan_id)
+    )
+    scan = result.scalar_one()
+    # Early exit — status stays pending (no process was started)
+    assert scan.scan_status == "pending"
+    assert scan_id not in _cancelled_scan_ids
+
+
+@pytest.mark.asyncio
+async def test_scan_cancelled_during_execution(db_session: AsyncSession, trivy_report):
+    """When process raises and scan_id is in _cancelled_scan_ids, status → cancelled."""
+    scan = ScanResult(image_name="nginx:latest", scan_status="pending")
+    db_session.add(scan)
+    await db_session.commit()
+    await db_session.refresh(scan)
+    scan_id = scan.id
+
+    fake_process = _make_fake_process(b"", returncode=1, stderr=b"killed")
+
+    async def fake_exec(*args, **kwargs):
+        _cancelled_scan_ids.add(scan_id)
+        return fake_process
+
+    with patch(
+        "app.services.scanner.asyncio.create_subprocess_exec",
+        side_effect=fake_exec,
+    ):
+        await _execute_scan(db_session, scan_id)
+
+    result = await db_session.execute(
+        select(ScanResult).where(ScanResult.id == scan_id)
+    )
+    scan = result.scalar_one()
+    assert scan.scan_status == "cancelled"
+    assert scan.completed_at is not None
+    assert scan_id not in _cancelled_scan_ids
