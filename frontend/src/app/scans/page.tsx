@@ -57,7 +57,7 @@ export default function ScansPage() {
                 <th className="px-6 py-3">Status</th>
                 <th className="px-6 py-3">Critical</th>
                 <th className="px-6 py-3">High</th>
-                <th className="px-6 py-3">Started</th>
+                <th className="px-6 py-3">Submitted</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -98,7 +98,7 @@ export default function ScansPage() {
                       {scan.summary?.high ?? "—"}
                     </td>
                     <td className="px-6 py-3 text-xs text-gray-400 dark:text-gray-500 font-mono">
-                      {new Date(scan.started_at).toLocaleString()}
+                      {new Date(scan.created_at).toLocaleString()}
                     </td>
                   </tr>
                 ))

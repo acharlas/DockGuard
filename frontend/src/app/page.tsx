@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import {
+  ApiError,
   cancelScan,
   createScan,
   getScan,
@@ -22,39 +23,83 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SkeletonStatCards } from "@/components/Skeleton";
 
+function isActiveScanStatus(status: string) {
+  return status === SCAN_STATUS.PENDING || status === SCAN_STATUS.RUNNING;
+}
+
 export default function Dashboard() {
   const [image, setImage] = useState("");
   const [scan, setScan] = useState<ScanDetail | null>(null);
+  const [activeScanId, setActiveScanId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [statsLoading, setStatsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
 
-  useEffect(() => {
-    setStatsLoading(true);
-    getStats()
+  const refreshStats = useCallback((showLoading: boolean) => {
+    if (showLoading) {
+      setStatsLoading(true);
+    }
+    return getStats()
       .then(setStats)
       .catch((e) => console.error("Failed to load stats", e))
-      .finally(() => setStatsLoading(false));
+      .finally(() => {
+        if (showLoading) {
+          setStatsLoading(false);
+        }
+      });
   }, []);
 
-  const pollScan = useCallback(async (id: number) => {
-    try {
-      const data = await getScan(id);
-      setScan(data);
-      if (data.scan_status === SCAN_STATUS.PENDING || data.scan_status === SCAN_STATUS.RUNNING) {
-        setTimeout(() => pollScan(id), 2000);
-      } else {
-        setLoading(false);
-        getStats()
-          .then(setStats)
-          .catch((e) => console.error("Failed to load stats", e));
-      }
-    } catch {
-      setError("Failed to fetch scan status");
-      setLoading(false);
+  useEffect(() => {
+    void refreshStats(true);
+  }, [refreshStats]);
+
+  useEffect(() => {
+    if (activeScanId === null) {
+      return;
     }
-  }, []);
+
+    let cancelled = false;
+    let timeoutId: number | undefined;
+    const controller = new AbortController();
+
+    const poll = async () => {
+      try {
+        const data = await getScan(activeScanId, controller.signal);
+        if (cancelled || data.id !== activeScanId) {
+          return;
+        }
+        setScan(data);
+        if (isActiveScanStatus(data.scan_status)) {
+          timeoutId = window.setTimeout(poll, 2000);
+          return;
+        }
+        setActiveScanId(null);
+        setLoading(false);
+        void refreshStats(false);
+      } catch (err) {
+        if (cancelled) {
+          return;
+        }
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+        setError("Failed to fetch scan status");
+        setActiveScanId(null);
+        setLoading(false);
+      }
+    };
+
+    void poll();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [activeScanId, refreshStats]);
 
   const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,24 +111,65 @@ export default function Dashboard() {
 
     try {
       const created = await createScan(image.trim());
-      setScan({ ...created, vulnerabilities: [] });
-      pollScan(created.id);
-    } catch {
-      setError("Failed to start scan. Check the image name.");
+      if (isActiveScanStatus(created.scan_status)) {
+        setScan({ ...created, vulnerabilities: [] });
+        setActiveScanId(created.id);
+        return;
+      }
+
+      const detail = await getScan(created.id);
+      setScan(detail);
+      setLoading(false);
+      void refreshStats(false);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 429) {
+        setError(err.detail ?? "Scan queue is full. Try again later.");
+      } else {
+        setError("Failed to start scan. Check the image name.");
+      }
       setLoading(false);
     }
   };
 
   const handleCancel = async () => {
     if (!scan) return;
+    const scanId = scan.id;
+    setActiveScanId(null);
     try {
-      const updated = await cancelScan(scan.id);
-      setScan({ ...updated, vulnerabilities: [] });
-      setLoading(false);
-    } catch {
+      const updated = await cancelScan(scanId);
+      setScan((current) =>
+        current
+          ? { ...current, ...updated }
+          : { ...updated, vulnerabilities: [] }
+      );
+      if (isActiveScanStatus(updated.scan_status)) {
+        setLoading(true);
+        setActiveScanId(scanId);
+      } else {
+        setLoading(false);
+        void refreshStats(false);
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        try {
+          const latest = await getScan(scanId);
+          setScan(latest);
+          setLoading(false);
+          if (!isActiveScanStatus(latest.scan_status)) {
+            void refreshStats(false);
+          }
+          return;
+        } catch {
+          // Fall through to the generic error state below.
+        }
+      }
+
+      setActiveScanId(scanId);
       setError("Failed to cancel scan.");
     }
   };
+
+  const isActiveScan = scan ? isActiveScanStatus(scan.scan_status) : false;
 
   const chartData =
     scan?.summary
@@ -187,9 +273,15 @@ export default function Dashboard() {
           </span>
           <span className="text-gray-300 dark:text-gray-700">—</span>
           <StatusBadge status={scan.scan_status} />
-          {(scan.scan_status === SCAN_STATUS.PENDING || scan.scan_status === SCAN_STATUS.RUNNING) && (
+          {isActiveScan && (
             <>
-              <ElapsedTimer startedAt={scan.started_at} />
+              {scan.scan_status === SCAN_STATUS.RUNNING && scan.started_at ? (
+                <ElapsedTimer startedAt={scan.started_at} />
+              ) : (
+                <span className="text-xs font-mono uppercase tracking-wide text-amber-500 dark:text-amber-400">
+                  Queued
+                </span>
+              )}
               <button
                 onClick={handleCancel}
                 className="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
@@ -202,41 +294,40 @@ export default function Dashboard() {
       )}
 
       {/* Scanning skeleton */}
-      {scan &&
-        (scan.scan_status === SCAN_STATUS.PENDING || scan.scan_status === SCAN_STATUS.RUNNING) && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6">
-              <div className="skeleton-shimmer h-5 rounded w-40 mb-4" />
-              <div className="flex items-center justify-center h-[250px]">
-                <div className="skeleton-shimmer rounded-full w-40 h-40" />
-              </div>
-            </div>
-            <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-xl shadow overflow-hidden">
-              <div className="p-6 pb-3">
-                <div className="skeleton-shimmer h-5 rounded w-32" />
-              </div>
-              <table className="w-full text-sm">
-                <tbody>
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <tr
-                      key={i}
-                      className="border-b border-gray-100 dark:border-gray-800"
-                    >
-                      {[40, 70, 55, 45, 35].map((w, j) => (
-                        <td key={j} className="px-6 py-3">
-                          <div
-                            className="skeleton-shimmer h-4 rounded"
-                            style={{ width: `${w}%` }}
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {scan && isActiveScan && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6">
+            <div className="skeleton-shimmer h-5 rounded w-40 mb-4" />
+            <div className="flex items-center justify-center h-[250px]">
+              <div className="skeleton-shimmer rounded-full w-40 h-40" />
             </div>
           </div>
-        )}
+          <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-xl shadow overflow-hidden">
+            <div className="p-6 pb-3">
+              <div className="skeleton-shimmer h-5 rounded w-32" />
+            </div>
+            <table className="w-full text-sm">
+              <tbody>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <tr
+                    key={i}
+                    className="border-b border-gray-100 dark:border-gray-800"
+                  >
+                    {[40, 70, 55, 45, 35].map((w, j) => (
+                      <td key={j} className="px-6 py-3">
+                        <div
+                          className="skeleton-shimmer h-4 rounded"
+                          style={{ width: `${w}%` }}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Results: chart + table */}
       {scan?.scan_status === "completed" && (
@@ -324,7 +415,7 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {scan.vulnerabilities
+                  {[...scan.vulnerabilities]
                     .sort(
                       (a, b) =>
                         SEVERITY_ORDER.indexOf(a.severity) -

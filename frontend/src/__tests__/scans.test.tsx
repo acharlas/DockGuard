@@ -29,7 +29,7 @@ const mockScans = {
       id: 1,
       image_name: "nginx:latest",
       scan_status: "completed",
-      started_at: "2026-03-11T00:00:00Z",
+      started_at: "2026-03-11T00:00:05Z",
       completed_at: "2026-03-11T00:01:00Z",
       summary: { critical: 2, high: 3, medium: 1, low: 0, unknown: 0 },
       created_at: "2026-03-11T00:00:00Z",
@@ -38,7 +38,7 @@ const mockScans = {
       id: 2,
       image_name: "alpine:3.19",
       scan_status: "failed",
-      started_at: "2026-03-11T00:02:00Z",
+      started_at: null,
       completed_at: "2026-03-11T00:03:00Z",
       summary: null,
       created_at: "2026-03-11T00:02:00Z",
@@ -79,6 +79,10 @@ test("renders scan rows from API", async () => {
   expect(screen.getByText("completed")).toBeInTheDocument();
   expect(screen.getByText("failed")).toBeInTheDocument();
   expect(screen.getByText("2 total")).toBeInTheDocument();
+  expect(screen.getByText("Submitted")).toBeInTheDocument();
+  expect(
+    screen.getByText(new Date("2026-03-11T00:00:00Z").toLocaleString())
+  ).toBeInTheDocument();
 });
 
 test("shows empty state when no scans exist", async () => {
