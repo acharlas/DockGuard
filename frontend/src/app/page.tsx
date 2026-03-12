@@ -1,143 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ApiError, cancelScan, createScan, getScan, ScanDetail } from "@/lib/api";
-import { SCAN_STATUS } from "@/lib/constants";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ScanWorkspace } from "@/components/ScanWorkspace";
 import { SeverityDonut } from "@/components/SeverityDonut";
-
-function isActiveScanStatus(status: string) {
-  return status === SCAN_STATUS.PENDING || status === SCAN_STATUS.RUNNING;
-}
+import { useActiveScan } from "@/hooks/useActiveScan";
 
 export default function Dashboard() {
-  const [image, setImage] = useState("");
-  const [scan, setScan] = useState<ScanDetail | null>(null);
-  const [activeScanId, setActiveScanId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    image,
+    setImage,
+    scan,
+    loading,
+    error,
+    isActiveScan,
+    runScan,
+    cancelActiveScan,
+  } = useActiveScan();
 
-  useEffect(() => {
-    if (activeScanId === null) {
-      return;
-    }
-
-    let cancelled = false;
-    let timeoutId: number | undefined;
-    const controller = new AbortController();
-
-    const poll = async () => {
-      try {
-        const data = await getScan(activeScanId, controller.signal);
-        if (cancelled || data.id !== activeScanId) {
-          return;
-        }
-        setScan(data);
-        if (isActiveScanStatus(data.scan_status)) {
-          timeoutId = window.setTimeout(poll, 2000);
-          return;
-        }
-        setActiveScanId(null);
-        setLoading(false);
-      } catch (err) {
-        if (cancelled) {
-          return;
-        }
-        if (err instanceof DOMException && err.name === "AbortError") {
-          return;
-        }
-        setError("Failed to fetch scan status");
-        setActiveScanId(null);
-        setLoading(false);
-      }
-    };
-
-    void poll();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-      if (timeoutId !== undefined) {
-        window.clearTimeout(timeoutId);
-      }
-    };
-  }, [activeScanId]);
-
-  const handleScan = async (event: React.FormEvent) => {
+  const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!image.trim()) {
-      return;
-    }
-
-    setError(null);
-    setLoading(true);
-    setScan(null);
-
-    try {
-      const created = await createScan(image.trim());
-      if (isActiveScanStatus(created.scan_status)) {
-        setScan({ ...created, vulnerabilities: [], build: null });
-        setActiveScanId(created.id);
-        return;
-      }
-
-      const detail = await getScan(created.id);
-      setScan(detail);
-      setLoading(false);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 429) {
-        setError(err.detail ?? "Scan queue is full. Try again later.");
-      } else {
-        setError("Failed to start scan. Check the image name.");
-      }
-      setLoading(false);
-    }
+    void runScan();
   };
 
-  const handleCancel = async () => {
-    if (!scan) {
-      return;
-    }
-
-    const scanId = scan.id;
-    setActiveScanId(null);
-
-    try {
-      const updated = await cancelScan(scanId);
-      setScan((current) =>
-        current
-          ? { ...current, ...updated }
-          : { ...updated, vulnerabilities: [], build: null }
-      );
-
-      if (isActiveScanStatus(updated.scan_status)) {
-        setLoading(true);
-        setActiveScanId(scanId);
-      } else {
-        setLoading(false);
-      }
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        try {
-          const latest = await getScan(scanId);
-          setScan(latest);
-          setLoading(false);
-          if (isActiveScanStatus(latest.scan_status)) {
-            setActiveScanId(scanId);
-          }
-          return;
-        } catch {
-          // Fall through to the generic error state below.
-        }
-      }
-
-      setActiveScanId(scanId);
-      setError("Failed to cancel scan.");
-    }
+  const handleCancel = () => {
+    void cancelActiveScan();
   };
-
-  const isActiveScan = scan ? isActiveScanStatus(scan.scan_status) : false;
 
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -160,7 +47,7 @@ export default function Dashboard() {
         </div>
 
         <form
-          onSubmit={handleScan}
+          onSubmit={handleSubmit}
           className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]"
         >
           <label className="block">
@@ -226,7 +113,7 @@ export default function Dashboard() {
                 </div>
                 {isActiveScan && (
                   <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--dockguard-muted)]">
-                    {scan.scan_status === SCAN_STATUS.RUNNING ? "Running" : "Queued"}
+                    {scan.scan_status === "running" ? "Running" : "Queued"}
                   </p>
                 )}
               </div>

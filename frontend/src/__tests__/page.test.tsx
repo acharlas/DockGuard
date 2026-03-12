@@ -180,6 +180,62 @@ test("shows queue message when scan queue is full", async () => {
   });
 });
 
+test("keeps the current workspace visible when a new submit fails", async () => {
+  const user = userEvent.setup();
+  let createAttempts = 0;
+
+  global.fetch = jest.fn((url: string, options?: RequestInit) => {
+    if (options?.method === "POST" && url === "/api/v1/scans") {
+      createAttempts += 1;
+      if (createAttempts === 1) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () =>
+            Promise.resolve({
+              ...mockScanResponse,
+              scan_status: "completed",
+              build_status: "completed",
+              started_at: "2026-03-11T00:00:05Z",
+              completed_at: "2026-03-11T00:01:00Z",
+              summary: { critical: 1, high: 1, medium: 1, low: 1, unknown: 0 },
+            }),
+        });
+      }
+
+      return Promise.resolve({
+        ok: false,
+        status: 429,
+        json: () => Promise.resolve({ detail: "Scan queue is full. Try again later." }),
+      });
+    }
+
+    return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
+  }) as jest.Mock;
+
+  render(<Dashboard />);
+
+  const input = screen.getByPlaceholderText("nginx:latest");
+
+  await user.type(input, "nginx:latest");
+  await user.click(screen.getByRole("button", { name: /run analysis/i }));
+
+  await waitFor(() => {
+    expect(screen.getByText("Vulnerabilities (2)")).toBeInTheDocument();
+  });
+
+  await user.clear(input);
+  await user.type(input, "alpine:latest");
+  await user.click(screen.getByRole("button", { name: /run analysis/i }));
+
+  await waitFor(() => {
+    expect(screen.getByText("Scan queue is full. Try again later.")).toBeInTheDocument();
+  });
+
+  expect(screen.getByText("Vulnerabilities (2)")).toBeInTheDocument();
+  expect(screen.getAllByText("CVE-2024-0001").length).toBeGreaterThan(0);
+});
+
 test("renders cached completed scans without starting a poll loop", async () => {
   const user = userEvent.setup();
   const completedCreateResponse = {
