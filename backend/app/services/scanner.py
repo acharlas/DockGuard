@@ -11,12 +11,15 @@ from app.config import settings
 from app.db.session import async_session
 from app.models.scan import ScanResult, ScanStatus
 from app.services.cache import cache_scan_result
+from app.services.dive import BuildAnalysisResult, analyze_image_build
 from app.services.metrics import (
     active_scans,
+    build_analyses_total,
     scan_duration_seconds,
     scans_total,
     vulnerabilities_found,
 )
+from app.services.subprocesses import cancel_running_process, run_logged_command
 from app.services.trivy_parser import compute_summary, extract_image_digest
 
 logger = logging.getLogger(__name__)
@@ -24,26 +27,10 @@ logger = logging.getLogger(__name__)
 _scan_semaphore = asyncio.Semaphore(settings.max_concurrent_scans)
 _ACTIVE_SCAN_STATUSES = (ScanStatus.PENDING, ScanStatus.RUNNING)
 _WORKER_RESTARTED_REASON = "worker_restarted"
-# In-process state — requires single uvicorn worker (default).
-# Multi-worker deployments would need an external store (e.g. Redis) for cancellation.
-_running_processes: dict[int, asyncio.subprocess.Process] = {}
 
 
 async def cancel_scan(scan_id: int) -> None:
-    proc = _running_processes.get(scan_id)
-    if proc is not None and proc.returncode is None:
-        proc.kill()
-
-
-async def _stream_stderr(process: asyncio.subprocess.Process, scan_id: int) -> bytes:
-    lines = []
-    while True:
-        line = await process.stderr.readline()
-        if not line:
-            break
-        lines.append(line)
-        logger.info("Scan %d [trivy]: %s", scan_id, line.decode().rstrip())
-    return b"".join(lines)
+    await cancel_running_process(scan_id)
 
 
 async def run_scan(scan_id: int) -> None:
@@ -94,6 +81,10 @@ async def _transition_pending_to_running(scan_id: int) -> str | None:
                 started_at=datetime.now(timezone.utc),
                 completed_at=None,
                 failure_reason=None,
+                build_status=None,
+                build_failure_reason=None,
+                build_summary=None,
+                build_report=None,
             )
         )
         if (result.rowcount or 0) != 1:
@@ -137,7 +128,11 @@ async def _finalize_cancel_if_requested(scan_id: int) -> bool:
         return current_status == ScanStatus.CANCELLED
 
 
-async def _finalize_success_if_running(scan_id: int, report: dict) -> ScanStatus | None:
+async def _finalize_success_if_running(
+    scan_id: int,
+    report: dict,
+    build_result: BuildAnalysisResult,
+) -> ScanStatus | None:
     image_digest = extract_image_digest(report)
     summary = compute_summary(report)
     now = datetime.now(timezone.utc)
@@ -152,6 +147,10 @@ async def _finalize_success_if_running(scan_id: int, report: dict) -> ScanStatus
                 raw_report=report,
                 summary=summary,
                 image_digest=image_digest,
+                build_status=build_result.status,
+                build_failure_reason=build_result.failure_reason,
+                build_summary=build_result.summary,
+                build_report=build_result.report,
                 scan_status=ScanStatus.COMPLETED,
                 completed_at=now,
                 failure_reason=None,
@@ -178,6 +177,7 @@ async def _finalize_success_if_running(scan_id: int, report: dict) -> ScanStatus
     for severity, count in summary.items():
         if count > 0:
             vulnerabilities_found.labels(severity=severity).inc(count)
+    build_analyses_total.labels(status=build_result.status).inc()
     return ScanStatus.COMPLETED
 
 
@@ -197,6 +197,10 @@ async def _finalize_failure_if_active(
                 scan_status=ScanStatus.FAILED,
                 completed_at=now,
                 failure_reason=failure_reason,
+                build_status=None,
+                build_failure_reason=None,
+                build_summary=None,
+                build_report=None,
             )
         )
         if (failure_result.rowcount or 0) == 1:
@@ -225,7 +229,9 @@ def _failure_reason(exc: Exception) -> str:
 
 
 async def _run_trivy(scan_id: int, image_name: str) -> dict:
-    process = await asyncio.create_subprocess_exec(
+    stdout = await run_logged_command(
+        scan_id,
+        "trivy",
         "trivy",
         "image",
         "--format",
@@ -236,33 +242,8 @@ async def _run_trivy(scan_id: int, image_name: str) -> dict:
         "--timeout",
         f"{settings.trivy_timeout}s",
         image_name,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+        timeout=settings.trivy_timeout,
     )
-    _running_processes[scan_id] = process
-    try:
-        stdout, stderr = await asyncio.wait_for(
-            asyncio.gather(
-                process.stdout.read(),
-                _stream_stderr(process, scan_id),
-            ),
-            timeout=settings.trivy_timeout,
-        )
-    finally:
-        _running_processes.pop(scan_id, None)
-        if process.returncode is None:
-            try:
-                await asyncio.wait_for(process.wait(), timeout=1)
-            except TimeoutError:
-                process.kill()
-                await process.wait()
-        else:
-            await process.wait()
-
-    if process.returncode != 0:
-        raise RuntimeError(
-            f"Trivy exited with code {process.returncode}: {stderr.decode().strip()}"
-        )
     return json.loads(stdout.decode())
 
 
@@ -280,8 +261,14 @@ async def _execute_scan(scan_id: int) -> None:
         metrics_started = True
         active_scans.inc()
         started = time.monotonic()
+
         report = await _run_trivy(scan_id, image_name)
-        final_status = await _finalize_success_if_running(scan_id, report)
+        if await _finalize_cancel_if_requested(scan_id):
+            final_status = ScanStatus.CANCELLED
+            return
+
+        build_result = await analyze_image_build(scan_id, image_name)
+        final_status = await _finalize_success_if_running(scan_id, report, build_result)
     except TimeoutError:
         final_status = await _finalize_failure_if_active(scan_id, "timeout")
         if final_status != ScanStatus.CANCELLED:

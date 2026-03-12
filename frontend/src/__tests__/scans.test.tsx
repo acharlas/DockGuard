@@ -1,4 +1,3 @@
-import "@testing-library/jest-dom";
 import { render, screen, waitFor } from "@testing-library/react";
 import ScansPage from "@/app/scans/page";
 
@@ -8,27 +7,13 @@ jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 
-jest.mock("next/link", () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const React = require("react");
-  return {
-    __esModule: true,
-    default: ({
-      children,
-      href,
-    }: {
-      children: React.ReactNode;
-      href: string;
-    }) => React.createElement("a", { href }, children),
-  };
-});
-
 const mockScans = {
   items: [
     {
       id: 1,
       image_name: "nginx:latest",
       scan_status: "completed",
+      build_status: "completed",
       started_at: "2026-03-11T00:00:05Z",
       completed_at: "2026-03-11T00:01:00Z",
       summary: { critical: 2, high: 3, medium: 1, low: 0, unknown: 0 },
@@ -38,6 +23,7 @@ const mockScans = {
       id: 2,
       image_name: "alpine:3.19",
       scan_status: "failed",
+      build_status: "unavailable",
       started_at: null,
       completed_at: "2026-03-11T00:03:00Z",
       summary: null,
@@ -54,17 +40,18 @@ beforeEach(() => {
   mockPush.mockClear();
 });
 
-test("renders scan history heading", async () => {
+test("renders history heading", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({ ok: true, json: () => Promise.resolve(mockScans) })
   ) as jest.Mock;
 
   render(<ScansPage />);
 
-  expect(screen.getByText("Scan History")).toBeInTheDocument();
+  expect(screen.getByText("History")).toBeInTheDocument();
+  expect(screen.getByText("Scan runs")).toBeInTheDocument();
 });
 
-test("renders scan rows from API", async () => {
+test("renders scan rows from API with build status", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({ ok: true, json: () => Promise.resolve(mockScans) })
   ) as jest.Mock;
@@ -76,13 +63,11 @@ test("renders scan rows from API", async () => {
   });
 
   expect(screen.getByText("alpine:3.19")).toBeInTheDocument();
-  expect(screen.getByText("completed")).toBeInTheDocument();
-  expect(screen.getByText("failed")).toBeInTheDocument();
-  expect(screen.getByText("2 total")).toBeInTheDocument();
+  expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
+  expect(screen.getByText("unavailable")).toBeInTheDocument();
+  expect(screen.getByText("2 scans")).toBeInTheDocument();
   expect(screen.getByText("Submitted")).toBeInTheDocument();
-  expect(
-    screen.getByText(new Date("2026-03-11T00:00:00Z").toLocaleString())
-  ).toBeInTheDocument();
+  expect(screen.getByText(new Date("2026-03-11T00:00:00Z").toLocaleString())).toBeInTheDocument();
 });
 
 test("shows empty state when no scans exist", async () => {

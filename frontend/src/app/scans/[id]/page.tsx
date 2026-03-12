@@ -1,21 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
-import { getScan, ScanDetail, Vulnerability } from "@/lib/api";
-import {
-  SEVERITY_ORDER,
-  SEVERITY_STYLES,
-} from "@/lib/constants";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { getScan, ScanDetail } from "@/lib/api";
+import { formatDateTime } from "@/lib/format";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SkeletonDetailPage } from "@/components/Skeleton";
+import { ScanWorkspace } from "@/components/ScanWorkspace";
+import { SeverityDonut } from "@/components/SeverityDonut";
 
 export default function ScanDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [scan, setScan] = useState<ScanDetail | null>(null);
-  const [filter, setFilter] = useState<string>("ALL");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,157 +28,65 @@ export default function ScanDetailPage() {
 
   if (error || !scan) {
     return (
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        <p className="text-red-600 dark:text-red-400">
-          {error ?? "Scan not found"}
-        </p>
-      </main>
+      <section className="rounded-[28px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] px-6 py-8">
+        <p className="text-rose-700 dark:text-rose-300">{error ?? "Scan not found"}</p>
+      </section>
     );
   }
 
-  const filtered: Vulnerability[] =
-    filter === "ALL"
-      ? scan.vulnerabilities
-      : scan.vulnerabilities.filter((v) => v.severity === filter);
-
-  const sorted = [...filtered].sort(
-    (a, b) =>
-      SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)
-  );
-
   return (
-    <main className="max-w-6xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4 min-w-0">
-          <Link
-            href="/scans"
-            className="shrink-0 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-          >
-            ← History
-          </Link>
-          <h1 className="text-xl font-bold font-mono text-gray-900 dark:text-gray-100 truncate">
+    <div className="space-y-6 lg:space-y-8">
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="rounded-[30px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] p-5 shadow-[0_18px_48px_rgba(120,53,15,0.08)] sm:p-6">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--dockguard-muted)]">
+            Analysis
+          </p>
+          <h1 className="mt-3 break-all text-3xl font-semibold tracking-tight text-[color:var(--dockguard-ink)] sm:text-4xl">
             {scan.image_name}
           </h1>
-          <StatusBadge status={scan.scan_status} />
-        </div>
-        <ThemeToggle />
-      </div>
 
-      {scan.summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-          {SEVERITY_ORDER.map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilter(filter === s ? "ALL" : s)}
-              className={`rounded-xl p-4 text-left transition-all border-2 bg-white dark:bg-gray-900 shadow hover:shadow-md ${
-                filter === s
-                  ? "border-gray-400 dark:border-gray-500"
-                  : "border-transparent"
-              }`}
-            >
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider">
-                {s}
-              </p>
-              <p
-                className={`text-2xl font-bold font-mono ${SEVERITY_STYLES[s]?.split(" ")[0] ?? "text-gray-900 dark:text-gray-100"}`}
-              >
-                {scan.summary![s.toLowerCase() as keyof typeof scan.summary] ??
-                  0}
-              </p>
-            </button>
-          ))}
-        </div>
-      )}
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            <StatusBadge status={scan.scan_status} />
+            {scan.build_status && <StatusBadge status={scan.build_status} />}
+          </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow border border-gray-100 dark:border-gray-800 overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-            Vulnerabilities{" "}
-            <span className="font-mono text-gray-900 dark:text-gray-100">
-              ({sorted.length}
-              {filter !== "ALL" && (
-                <span className="text-gray-400 dark:text-gray-500">
-                  {" "}
-                  · {filter}
-                </span>
-              )}
-              )
-            </span>
-          </h2>
-          {filter !== "ALL" && (
-            <button
-              onClick={() => setFilter("ALL")}
-              className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-            >
-              Clear filter ×
-            </button>
-          )}
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetaCard label="Submitted" value={formatDateTime(scan.created_at)} />
+            <MetaCard label="Started" value={formatDateTime(scan.started_at)} />
+            <MetaCard label="Completed" value={formatDateTime(scan.completed_at)} />
+            <MetaCard label="Digest" value={scan.image_digest ?? "—"} mono />
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              <tr>
-                <th className="px-6 py-3">Severity</th>
-                <th className="px-6 py-3">CVE ID</th>
-                <th className="px-6 py-3">Package</th>
-                <th className="px-6 py-3">Installed</th>
-                <th className="px-6 py-3">Fixed</th>
-                <th className="px-6 py-3">Title</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {sorted.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="px-6 py-12 text-center text-gray-400 dark:text-gray-600 text-sm"
-                  >
-                    No vulnerabilities found
-                  </td>
-                </tr>
-              ) : (
-                sorted.map((v, i) => (
-                  <tr
-                    key={`${v.vuln_id}-${i}`}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-                  >
-                    <td className="px-6 py-3">
-                      <span
-                        className={`px-2 py-0.5 rounded text-xs font-medium ${SEVERITY_STYLES[v.severity] ?? ""}`}
-                      >
-                        {v.severity}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">
-                      {v.vuln_id}
-                    </td>
-                    <td className="px-6 py-3 text-gray-700 dark:text-gray-300">
-                      {v.package_name}
-                    </td>
-                    <td className="px-6 py-3 font-mono text-xs text-gray-600 dark:text-gray-400">
-                      {v.installed_version}
-                    </td>
-                    <td className="px-6 py-3 font-mono text-xs">
-                      {v.fixed_version ? (
-                        <span className="text-green-600 dark:text-green-400">
-                          {v.fixed_version}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-600">
-                          No fix
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-3 text-gray-500 dark:text-gray-400 max-w-xs truncate">
-                      {v.title}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </main>
+
+        <SeverityDonut summary={scan.summary} />
+      </section>
+
+      <ScanWorkspace key={scan.id} scan={scan} />
+    </div>
+  );
+}
+
+function MetaCard({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="rounded-[22px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-4 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--dockguard-muted)]">
+        {label}
+      </p>
+      <p
+        className={`mt-3 text-sm text-[color:var(--dockguard-ink)] ${
+          mono ? "break-all font-mono text-xs" : ""
+        }`}
+      >
+        {value}
+      </p>
+    </div>
   );
 }

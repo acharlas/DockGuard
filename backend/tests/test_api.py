@@ -209,11 +209,22 @@ async def test_get_scan_detail(
     client: AsyncClient,
     db_session: AsyncSession,
     trivy_report,
+    dive_report,
 ):
     scan = ScanResult(
         image_name="nginx:latest",
         image_digest=DIGEST,
         scan_status="completed",
+        build_status="completed",
+        build_summary={
+            "image_size_bytes": 205000000,
+            "efficiency_score": 0.87,
+            "wasted_bytes": 18450000,
+            "wasted_percent": 9.0,
+            "layer_count": 4,
+            "inefficient_layer_count": 2,
+        },
+        build_report={"layers": dive_report["layers"][:2]},
         summary={"critical": 1, "high": 1, "medium": 1, "low": 1, "unknown": 0},
         raw_report=trivy_report,
     )
@@ -226,8 +237,12 @@ async def test_get_scan_detail(
     data = resp.json()
     assert data["image_name"] == "nginx:latest"
     assert data["image_digest"] == DIGEST
+    assert data["build_status"] == "completed"
     assert len(data["vulnerabilities"]) == 4
     assert data["vulnerabilities"][0]["vuln_id"] == "CVE-2024-0001"
+    assert data["build"]["status"] == "completed"
+    assert data["build"]["summary"]["efficiency_score"] == 0.87
+    assert data["build"]["report"]["layers"][0]["layer_id"] == "sha256:layer-1"
 
 
 @pytest.mark.asyncio
@@ -330,6 +345,13 @@ async def test_stats_empty(client: AsyncClient):
         "low": 0,
         "unknown": 0,
     }
+    assert data["build_breakdown"] == {
+        "completed": 0,
+        "failed": 0,
+        "unavailable": 0,
+    }
+    assert data["avg_efficiency_score"] is None
+    assert data["total_wasted_bytes"] == 0
     assert data["top_cves"] == []
     assert data["top_images"] == []
 
@@ -344,22 +366,47 @@ async def test_stats_aggregates_completed_scans(
         scan = ScanResult(
             image_name=image,
             scan_status="completed",
+            build_status="completed",
+            build_summary={
+                "image_size_bytes": 205000000,
+                "efficiency_score": 0.87,
+                "wasted_bytes": 18450000,
+                "wasted_percent": 9.0,
+                "layer_count": 4,
+                "inefficient_layer_count": 2,
+            },
             summary={"critical": 1, "high": 1, "medium": 1, "low": 1},
             raw_report=trivy_report,
         )
         db_session.add(scan)
     db_session.add(ScanResult(image_name="bad:image", scan_status="failed"))
+    db_session.add(
+        ScanResult(
+            image_name="socketless:image",
+            scan_status="completed",
+            build_status="unavailable",
+            build_failure_reason="docker_unavailable",
+            summary={"critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0},
+        )
+    )
     await db_session.commit()
 
     resp = await client.get("/api/v1/stats")
     assert resp.status_code == 200
     data = resp.json()
 
-    assert data["total_scans"] == 4
-    assert data["completed_scans"] == 3
+    assert data["total_scans"] == 5
+    assert data["completed_scans"] == 4
     assert data["failed_scans"] == 1
     assert data["severity_breakdown"]["critical"] == 3
     assert data["severity_breakdown"]["high"] == 3
+    assert data["build_breakdown"] == {
+        "completed": 3,
+        "failed": 0,
+        "unavailable": 1,
+    }
+    assert data["avg_efficiency_score"] == 0.87
+    assert data["total_wasted_bytes"] == 55350000
     assert len(data["top_cves"]) == 4
     assert data["top_cves"][0]["count"] == 3
     assert data["top_images"][0] == {"image_name": "nginx:latest", "scan_count": 2}

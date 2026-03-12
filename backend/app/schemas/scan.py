@@ -54,6 +54,36 @@ class ScanSummary(BaseModel):
     unknown: int = 0
 
 
+class BuildSummary(BaseModel):
+    image_size_bytes: int | None = None
+    efficiency_score: float | None = None
+    wasted_bytes: int | None = None
+    wasted_percent: float | None = None
+    layer_count: int | None = None
+    inefficient_layer_count: int | None = None
+
+
+class BuildLayerOut(BaseModel):
+    index: int
+    layer_id: str | None = None
+    instruction: str | None = None
+    size_bytes: int | None = None
+    wasted_bytes: int | None = None
+    wasted_percent: float | None = None
+    efficiency_score: float | None = None
+
+
+class BuildReportOut(BaseModel):
+    layers: list[BuildLayerOut] = Field(default_factory=list)
+
+
+class BuildOut(BaseModel):
+    status: str
+    failure_reason: str | None = None
+    summary: BuildSummary | None = None
+    report: BuildReportOut | None = None
+
+
 class VulnerabilityOut(BaseModel):
     vuln_id: str
     package_name: str
@@ -68,6 +98,7 @@ class ScanOut(BaseModel):
     image_name: str
     image_digest: str | None = None
     scan_status: str
+    build_status: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
     summary: ScanSummary | None = None
@@ -78,6 +109,7 @@ class ScanOut(BaseModel):
 
 class ScanDetailOut(ScanOut):
     vulnerabilities: list[VulnerabilityOut] = Field(default_factory=list)
+    build: BuildOut | None = None
 
 
 class ScanListOut(BaseModel):
@@ -99,10 +131,19 @@ class TopImage(BaseModel):
     scan_count: int
 
 
+class BuildBreakdown(BaseModel):
+    completed: int = 0
+    failed: int = 0
+    unavailable: int = 0
+
+
 class StatsOut(BaseModel):
     total_scans: int
     completed_scans: int
     failed_scans: int
     severity_breakdown: ScanSummary
+    build_breakdown: BuildBreakdown
+    avg_efficiency_score: float | None = None
+    total_wasted_bytes: int
     top_cves: list[TopCve]
     top_images: list[TopImage]

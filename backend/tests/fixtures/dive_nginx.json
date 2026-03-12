@@ -1,0 +1,43 @@
+{
+  "image": {
+    "sizeBytes": 205000000,
+    "efficiencyScore": 0.87,
+    "wastedBytes": 18450000,
+    "wastedPercent": 9.0
+  },
+  "layerCount": 4,
+  "layers": [
+    {
+      "id": "sha256:layer-1",
+      "createdBy": "FROM nginx:stable-alpine",
+      "sizeBytes": 80300000,
+      "wastedBytes": 0,
+      "wastedPercent": 0,
+      "efficiencyScore": 1.0
+    },
+    {
+      "id": "sha256:layer-2",
+      "createdBy": "RUN apk add curl bash",
+      "sizeBytes": 40200000,
+      "wastedBytes": 8200000,
+      "wastedPercent": 20.4,
+      "efficiencyScore": 0.8
+    },
+    {
+      "id": "sha256:layer-3",
+      "createdBy": "COPY . /app",
+      "sizeBytes": 52300000,
+      "wastedBytes": 10250000,
+      "wastedPercent": 19.6,
+      "efficiencyScore": 0.8
+    },
+    {
+      "id": "sha256:layer-4",
+      "createdBy": "RUN rm -rf /var/cache/apk/*",
+      "sizeBytes": 32200000,
+      "wastedBytes": 0,
+      "wastedPercent": 0,
+      "efficiencyScore": 1.0
+    }
+  ]
+}

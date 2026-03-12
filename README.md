@@ -3,7 +3,7 @@
 [![CI/CD](https://github.com/acharlas/DockGuard/actions/workflows/ci.yml/badge.svg)](https://github.com/acharlas/DockGuard/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**DockGuard** is a full-stack Docker image security scanning dashboard that wraps [Trivy](https://trivy.dev) behind a production-grade DevSecOps pipeline. Scan any Docker image, track vulnerability history, and monitor scan metrics in real time — all from a single `docker compose up --build`. The infrastructure itself is the portfolio artifact: every layer (async API, CI/CD pipeline, containerisation, Prometheus/Grafana, Terraform IaC) demonstrates a specific DevOps/DevSecOps competency.
+**DockGuard** is a full-stack container image analysis dashboard with two lenses: **Security** via [Trivy](https://trivy.dev) and **Build** via [Dive](https://github.com/wagoodman/dive). Paste any Docker image reference, open one scan workspace, and inspect both package risk and layer efficiency from a single `docker compose up --build`.
 
 ---
 
@@ -14,7 +14,8 @@ graph TD
     Browser["Browser\n:3000"] -->|HTTP| Frontend["Next.js 14\nFrontend"]
     Frontend -->|route handler proxy| Backend["FastAPI\nBackend :8000"]
     Backend -->|asyncpg| DB[(PostgreSQL 16)]
-    Backend -->|subprocess| Trivy["Trivy CLI\nasyncio.Semaphore(3)"]
+    Backend -->|subprocess| Trivy["Trivy CLI\nSecurity analysis"]
+    Backend -->|subprocess + docker.sock| Dive["Dive CLI\nBuild analysis"]
     Backend -->|SETEX 10min| Redis[(Redis 7)]
     Backend -->|/metrics| Prometheus["Prometheus\n:9090"]
     Prometheus --> Grafana["Grafana\n:3001"]
@@ -36,10 +37,10 @@ graph TD
 |-------|-----------|
 | Backend | FastAPI (Python 3.12), SQLAlchemy async, Alembic |
 | Frontend | Next.js 14 App Router, TypeScript, Tailwind CSS, Recharts |
-| Scanner | Trivy CLI (via `asyncio.create_subprocess_exec`, never `shell=True`) |
+| Scanner | Trivy CLI + Dive CLI (best-effort Build analysis through Docker socket access) |
 | Database | PostgreSQL 16 (vulnerabilities stored as JSON in `raw_report`) |
 | Cache | Redis 7 (10-min TTL for digest-pinned image reuse, graceful degradation) |
-| Monitoring | Prometheus + Grafana (4 custom metrics) |
+| Monitoring | Prometheus + Grafana (5 custom metrics) |
 | IaC | Terraform — flat `main.tf`, EC2 + RDS, `templatefile()` user_data |
 | CI/CD | GitHub Actions — lint → test → build → security scan → push GHCR |
 
@@ -50,6 +51,7 @@ graph TD
 ```bash
 git clone https://github.com/acharlas/DockGuard.git
 cd DockGuard
+export DOCKER_GID="$(stat -c '%g' /var/run/docker.sock)"
 docker compose up --build
 ```
 
@@ -64,6 +66,10 @@ docker compose up --build
 > **Cache permissions:** The Compose stack now runs a one-shot `trivy-cache-init` service that fixes ownership on the named Trivy cache volume before the backend starts. Rebuild the backend image after pulling these changes.
 >
 > **API access:** The default stack exposes only the frontend. Browser API calls go through the Next.js route-handler proxy. Use `docker compose -f docker-compose.dev.yml up` if you want direct access to Swagger at `http://localhost:8000/docs`.
+>
+> **Build analysis:** The backend mounts `/var/run/docker.sock` so Dive can inspect real images. Set `DOCKER_GID` to the socket group on your host before starting the stack.
+>
+> **Grafana sidebar link:** The local Docker Compose stacks bake `http://localhost:3001` into the frontend build. For any other environment, set `NEXT_PUBLIC_GRAFANA_URL` explicitly before building the frontend image. If it is unset, the Grafana button is hidden.
 
 ### Populate demo data
 
@@ -114,10 +120,10 @@ The security gate (`--exit-code 1` on CRITICAL) means broken images never reach 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/v1/scans` | Initiate scan (`202` for new/in-flight work, `200` for digest-cached completed result, may return `429` when the queue is full) |
+| `POST` | `/api/v1/scans` | Initiate analysis (`202` for new/in-flight work, `200` for digest-cached completed result, may return `429` when the queue is full) |
 | `GET` | `/api/v1/scans` | Paginated scan history (filters: `status`, `date_from`, `date_to`) |
-| `GET` | `/api/v1/scans/{id}` | Scan detail + parsed vulnerabilities |
-| `GET` | `/api/v1/stats` | Totals, severity breakdown, top 10 CVEs, top 5 images |
+| `GET` | `/api/v1/scans/{id}` | Scan detail with Security and Build sections |
+| `GET` | `/api/v1/stats` | Totals, severity breakdown, build metrics, top 10 CVEs, top 5 images |
 | `GET` | `/api/v1/health` | Health check (DB ping) |
 | `GET` | `/metrics` | Prometheus metrics |
 
@@ -134,11 +140,17 @@ POST /scans → existing pending/running scan returned when duplicate work is al
           ↓
           202 (scan_status: "pending")  |  200 (completed digest cache hit)
                     ↓ asyncio background task
-              scan_status: "running"  (Trivy subprocess starts)
+              scan_status: "running"
+                    ↓
+              Trivy security analysis
+                    ↓
+              Dive build analysis (best effort)
                     ↓
               scan_status: "completed" | "failed" | "cancelled"
                     ↓
-              Redis cache set for immutable digest  →  digest-pinned requests can reuse a recent completed result
+              completed scans persist Security + Build output on the same row
+                    ↓
+              Redis cache set for immutable digest → digest-pinned requests can reuse a recent completed result
 ```
 
 ---
@@ -150,6 +162,7 @@ POST /scans → existing pending/running scan returned when duplicate work is al
 | `dockguard_scans_total` | Counter | `status` |
 | `dockguard_scan_duration_seconds` | Histogram | — |
 | `dockguard_vulnerabilities_found` | Counter | `severity` |
+| `dockguard_build_analyses_total` | Counter | `status` |
 | `dockguard_active_scans` | Gauge | — |
 
 ---
@@ -181,7 +194,8 @@ cd terraform && terraform init && terraform validate
 | Decision | Rationale |
 |----------|-----------|
 | No `Vulnerability` table | Trivy JSON stored in `raw_report`, queried via PostgreSQL JSON operators. Denormalise only when slowness is proven, not assumed. |
-| `asyncio.Semaphore(3)` not a queue service | One line limits concurrency to 3 concurrent Trivy processes — zero extra infrastructure for a single-worker backend. |
+| One scan row stores both lenses | Security and Build are part of the same user action. A second table would be ceremony for this MVP. |
+| `asyncio.Semaphore(3)` not a queue service | One line limits concurrency to 3 concurrent scan processes — zero extra infrastructure for a single-worker backend. |
 | Redis added at Day 5 | Not Day 1. Added when the use case was real (reuse digest-pinned scans safely), not speculatively. |
 | Flat Terraform (`main.tf`) | Modules add abstraction cost. For one VPC + one EC2 + one RDS, a flat file with clear comments is easier to read and review. |
 | `templatefile()` for `user_data` | Separates HCL interpolation from bash, avoiding nested heredoc parsing issues and making the bootstrap script testable independently. |
@@ -191,6 +205,7 @@ cd terraform && terraform init && terraform validate
 
 - The sample Terraform deployment is HTTP-only on port `80`. It does not terminate TLS.
 - Restrict `ssh_allowed_cidr` explicitly in `terraform.tfvars`; there is no world-open SSH default anymore.
+- The Build lens requires Docker socket access on the backend host. Terraform user-data exports `DOCKER_GID` automatically before `docker compose up`.
 
 ---
 

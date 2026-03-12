@@ -18,6 +18,12 @@ vulnerabilities_found = Counter(
     ["severity"],
 )
 
+build_analyses_total = Counter(
+    "dockguard_build_analyses_total",
+    "Total build analyses by final build status",
+    ["status"],
+)
+
 active_scans = Gauge(
     "dockguard_active_scans",
     "Number of currently running scans",

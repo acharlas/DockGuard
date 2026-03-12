@@ -11,6 +11,7 @@ from app.main import app
 from app.models.scan import Base
 from app.services import cache as cache_module
 from app.services import scanner as scanner_module
+from app.services import subprocesses as subprocesses_module
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -18,6 +19,11 @@ FIXTURES = Path(__file__).parent / "fixtures"
 @pytest.fixture
 def trivy_report():
     return json.loads((FIXTURES / "trivy_nginx.json").read_text())
+
+
+@pytest.fixture
+def dive_report():
+    return json.loads((FIXTURES / "dive_nginx.json").read_text())
 
 
 @pytest.fixture
@@ -68,7 +74,7 @@ def reset_global_state():
         side_effect=discard_background_task,
     ):
         cache_module._client = None
-        scanner_module._running_processes.clear()
+        subprocesses_module.running_processes.clear()
         yield
         cache_module._client = None
-        scanner_module._running_processes.clear()
+        subprocesses_module.running_processes.clear()

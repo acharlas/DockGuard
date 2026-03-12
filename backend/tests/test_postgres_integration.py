@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.main import app
 from app.models.scan import ScanResult, ScanStatus
 from app.services import scanner as scanner_module
+from app.services.dive import BuildAnalysisResult
 
 FIXTURES = Path(__file__).parent / "fixtures"
 POSTGRES_TEST_DATABASE_URL = os.getenv("POSTGRES_TEST_DATABASE_URL")
@@ -39,7 +40,9 @@ async def postgres_session_factory():
 
 
 @pytest.mark.asyncio
-async def test_postgres_stats_and_nullable_started_at(postgres_session_factory):
+async def test_postgres_stats_nullable_started_at_and_build_metrics(
+    postgres_session_factory,
+):
     trivy_report = json.loads((FIXTURES / "trivy_nginx.json").read_text())
 
     async with postgres_session_factory() as session:
@@ -53,6 +56,15 @@ async def test_postgres_stats_and_nullable_started_at(postgres_session_factory):
                 ScanResult(
                     image_name="alpine:3.19",
                     scan_status="completed",
+                    build_status="completed",
+                    build_summary={
+                        "image_size_bytes": 205000000,
+                        "efficiency_score": 0.87,
+                        "wasted_bytes": 18450000,
+                        "wasted_percent": 9.0,
+                        "layer_count": 4,
+                        "inefficient_layer_count": 2,
+                    },
                     summary={
                         "critical": 2,
                         "high": 1,
@@ -91,6 +103,13 @@ async def test_postgres_stats_and_nullable_started_at(postgres_session_factory):
     assert stats_data["total_scans"] == 2
     assert stats_data["completed_scans"] == 1
     assert stats_data["severity_breakdown"]["critical"] == 2
+    assert stats_data["build_breakdown"] == {
+        "completed": 1,
+        "failed": 0,
+        "unavailable": 0,
+    }
+    assert stats_data["avg_efficiency_score"] == 0.87
+    assert stats_data["total_wasted_bytes"] == 18450000
 
 
 @pytest.mark.asyncio
@@ -113,9 +132,14 @@ async def test_postgres_cancel_requested_scan_cannot_complete(
     original_async_session = scanner_module.async_session
     scanner_module.async_session = postgres_session_factory
     try:
+        build_result = BuildAnalysisResult(
+            status="unavailable",
+            failure_reason="docker_unavailable",
+        )
         final_status = await scanner_module._finalize_success_if_running(
             scan_id,
             trivy_report,
+            build_result,
         )
     finally:
         scanner_module.async_session = original_async_session
@@ -174,3 +198,54 @@ async def test_postgres_reconcile_interrupted_scans(postgres_session_factory):
     assert scans["running:latest"]["failure_reason"] == "worker_restarted"
     assert scans["running:latest"]["completed_at"] is not None
     assert scans["done:latest"]["scan_status"] == ScanStatus.COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_postgres_scan_detail_serializes_build_analysis(postgres_session_factory):
+    trivy_report = json.loads((FIXTURES / "trivy_nginx.json").read_text())
+    dive_report = json.loads((FIXTURES / "dive_nginx.json").read_text())
+
+    async with postgres_session_factory() as session:
+        session.add(
+            ScanResult(
+                image_name="nginx:latest",
+                scan_status="completed",
+                build_status="completed",
+                build_summary={
+                    "image_size_bytes": 205000000,
+                    "efficiency_score": 0.87,
+                    "wasted_bytes": 18450000,
+                    "wasted_percent": 9.0,
+                    "layer_count": 4,
+                    "inefficient_layer_count": 2,
+                },
+                build_report={"layers": dive_report["layers"][:2]},
+                summary={
+                    "critical": 2,
+                    "high": 1,
+                    "medium": 0,
+                    "low": 0,
+                    "unknown": 0,
+                },
+                raw_report=trivy_report,
+            )
+        )
+        await session.commit()
+
+    async def override_get_db():
+        async with postgres_session_factory() as session:
+            yield session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            detail_resp = await client.get("/api/v1/scans/1")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert detail_resp.status_code == 200
+    detail_data = detail_resp.json()
+    assert detail_data["build_status"] == "completed"
+    assert detail_data["build"]["summary"]["efficiency_score"] == 0.87
+    assert detail_data["build"]["report"]["layers"][0]["layer_id"] == "sha256:layer-1"

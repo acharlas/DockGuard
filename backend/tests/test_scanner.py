@@ -1,15 +1,15 @@
 import asyncio
-import json
 from datetime import datetime, timezone
-from unittest.mock import ANY, AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.scans import _cancel_pending_if_still_pending
-from app.models.scan import ScanResult
+from app.models.scan import BuildStatus, ScanResult, ScanStatus
 from app.services import scanner as scanner_module
+from app.services.dive import BuildAnalysisResult
 from app.services.scanner import (
     _execute_scan,
     _transition_pending_to_running,
@@ -17,49 +17,39 @@ from app.services.scanner import (
 )
 
 
-def _make_fake_process(stdout: bytes, returncode: int | None, stderr: bytes = b""):
-    process = AsyncMock()
-    process.stdout.read = AsyncMock(return_value=stdout)
-    readline_effects = ([stderr] if stderr else []) + [b""]
-    process.stderr.readline = AsyncMock(side_effect=readline_effects)
-    process.returncode = returncode
-    process.kill = MagicMock()
-    process.wait = AsyncMock()
-    return process
-
-
 @pytest.mark.asyncio
-async def test_scan_success_transitions(db_session: AsyncSession, trivy_report):
+async def test_scan_success_transitions(
+    db_session: AsyncSession,
+    trivy_report,
+    dive_report,
+):
     scan = ScanResult(image_name="nginx:latest", scan_status="pending")
     db_session.add(scan)
     await db_session.commit()
     await db_session.refresh(scan)
-    scan_id = scan.id
 
-    trivy_stdout = json.dumps(trivy_report).encode()
-    fake_process = _make_fake_process(trivy_stdout, returncode=0)
-
-    with patch(
-        "app.services.scanner.asyncio.create_subprocess_exec",
-        return_value=fake_process,
-    ) as mock_exec:
-        await _execute_scan(scan_id)
+    with (
+        patch("app.services.scanner._run_trivy", AsyncMock(return_value=trivy_report)),
+        patch(
+            "app.services.scanner.analyze_image_build",
+            AsyncMock(
+                return_value=BuildAnalysisResult(
+                    status=BuildStatus.COMPLETED,
+                    summary={
+                        "image_size_bytes": 205000000,
+                        "efficiency_score": 0.87,
+                        "wasted_bytes": 18450000,
+                        "wasted_percent": 9.0,
+                        "layer_count": 4,
+                        "inefficient_layer_count": 2,
+                    },
+                    report={"layers": dive_report["layers"][:2]},
+                )
+            ),
+        ),
+    ):
+        await _execute_scan(scan.id)
     await db_session.refresh(scan)
-
-    mock_exec.assert_called_once_with(
-        "trivy",
-        "image",
-        "--format",
-        "json",
-        "--no-progress",
-        "--scanners",
-        "vuln",
-        "--timeout",
-        ANY,
-        "nginx:latest",
-        stdout=ANY,
-        stderr=ANY,
-    )
 
     assert scan.scan_status == "completed"
     assert scan.started_at is not None
@@ -77,6 +67,42 @@ async def test_scan_success_transitions(db_session: AsyncSession, trivy_report):
     )
     assert scan.failure_reason is None
     assert scan.raw_report is not None
+    assert scan.build_status == BuildStatus.COMPLETED
+    assert scan.build_summary is not None
+    assert scan.build_summary["efficiency_score"] == 0.87
+    assert scan.build_report is not None
+
+
+@pytest.mark.asyncio
+async def test_scan_build_failure_keeps_scan_completed(
+    db_session: AsyncSession,
+    trivy_report,
+):
+    scan = ScanResult(image_name="nginx:latest", scan_status="pending")
+    db_session.add(scan)
+    await db_session.commit()
+    await db_session.refresh(scan)
+
+    with (
+        patch("app.services.scanner._run_trivy", AsyncMock(return_value=trivy_report)),
+        patch(
+            "app.services.scanner.analyze_image_build",
+            AsyncMock(
+                return_value=BuildAnalysisResult(
+                    status=BuildStatus.UNAVAILABLE,
+                    failure_reason="docker_unavailable",
+                )
+            ),
+        ),
+    ):
+        await _execute_scan(scan.id)
+    await db_session.refresh(scan)
+
+    assert scan.scan_status == ScanStatus.COMPLETED
+    assert scan.build_status == BuildStatus.UNAVAILABLE
+    assert scan.build_failure_reason == "docker_unavailable"
+    assert scan.build_summary is None
+    assert scan.build_report is None
 
 
 @pytest.mark.asyncio
@@ -85,19 +111,22 @@ async def test_scan_failure_transitions(db_session: AsyncSession):
     db_session.add(scan)
     await db_session.commit()
     await db_session.refresh(scan)
-    scan_id = scan.id
 
-    fake_process = _make_fake_process(
-        stdout=b"",
-        returncode=1,
-        stderr=b"Error: image not found",
-    )
-
-    with patch(
-        "app.services.scanner.asyncio.create_subprocess_exec",
-        return_value=fake_process,
+    with (
+        patch(
+            "app.services.scanner._run_trivy",
+            AsyncMock(
+                side_effect=RuntimeError(
+                    "Trivy exited with code 1: Error: image not found"
+                )
+            ),
+        ),
+        patch(
+            "app.services.scanner.analyze_image_build",
+            AsyncMock(),
+        ) as build_mock,
     ):
-        await _execute_scan(scan_id)
+        await _execute_scan(scan.id)
     await db_session.refresh(scan)
 
     assert scan.scan_status == "failed"
@@ -105,6 +134,8 @@ async def test_scan_failure_transitions(db_session: AsyncSession):
     assert scan.completed_at is not None
     assert scan.failure_reason == "Trivy exited with code 1: Error: image not found"
     assert scan.raw_report is None
+    assert scan.build_status is None
+    build_mock.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -113,10 +144,9 @@ async def test_scan_timeout_transitions(db_session: AsyncSession):
     db_session.add(scan)
     await db_session.commit()
     await db_session.refresh(scan)
-    scan_id = scan.id
 
     with patch("app.services.scanner._run_trivy", side_effect=TimeoutError):
-        await _execute_scan(scan_id)
+        await _execute_scan(scan.id)
     await db_session.refresh(scan)
 
     assert scan.scan_status == "failed"
@@ -146,7 +176,7 @@ async def test_scan_cancel_requested_before_start(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_scan_cancelled_before_success_persistence(
+async def test_scan_cancelled_after_trivy_before_build(
     db_session: AsyncSession,
     trivy_report,
 ):
@@ -166,13 +196,72 @@ async def test_scan_cancelled_before_success_persistence(
             await session.commit()
         return trivy_report
 
-    with patch("app.services.scanner._run_trivy", side_effect=fake_run_trivy):
+    with (
+        patch("app.services.scanner._run_trivy", side_effect=fake_run_trivy),
+        patch(
+            "app.services.scanner.analyze_image_build",
+            AsyncMock(),
+        ) as build_mock,
+    ):
         await _execute_scan(scan.id)
     await db_session.refresh(scan)
 
     assert scan.scan_status == "cancelled"
     assert scan.raw_report is None
     assert scan.summary is None
+    assert scan.build_status is None
+    assert scan.completed_at is not None
+    assert scan.failure_reason == "cancelled"
+    build_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_scan_cancelled_before_success_persistence(
+    db_session: AsyncSession,
+    trivy_report,
+    dive_report,
+):
+    scan = ScanResult(image_name="nginx:latest", scan_status="pending")
+    db_session.add(scan)
+    await db_session.commit()
+    await db_session.refresh(scan)
+
+    async def fake_build_analysis(scan_id: int, image_name: str):
+        assert image_name == "nginx:latest"
+        async with scanner_module.async_session() as session:
+            result = await session.execute(
+                select(ScanResult).where(ScanResult.id == scan_id)
+            )
+            running_scan = result.scalar_one()
+            running_scan.cancel_requested_at = datetime.now(timezone.utc)
+            await session.commit()
+        return BuildAnalysisResult(
+            status=BuildStatus.COMPLETED,
+            summary={
+                "image_size_bytes": 205000000,
+                "efficiency_score": 0.87,
+                "wasted_bytes": 18450000,
+                "wasted_percent": 9.0,
+                "layer_count": 4,
+                "inefficient_layer_count": 2,
+            },
+            report={"layers": dive_report["layers"][:2]},
+        )
+
+    with (
+        patch("app.services.scanner._run_trivy", AsyncMock(return_value=trivy_report)),
+        patch(
+            "app.services.scanner.analyze_image_build",
+            side_effect=fake_build_analysis,
+        ),
+    ):
+        await _execute_scan(scan.id)
+    await db_session.refresh(scan)
+
+    assert scan.scan_status == "cancelled"
+    assert scan.raw_report is None
+    assert scan.summary is None
+    assert scan.build_status is None
     assert scan.completed_at is not None
     assert scan.failure_reason == "cancelled"
 
