@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -8,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.db.session import get_db
 from app.main import app
 from app.models.scan import Base
+from app.services import cache as cache_module
+from app.services import scanner as scanner_module
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -18,14 +21,17 @@ def trivy_report():
 
 
 @pytest.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+async def session_factory(tmp_path):
+    db_path = tmp_path / "test.db"
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with session_factory() as session:
-        yield session
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    original_async_session = scanner_module.async_session
+    scanner_module.async_session = factory
+    yield factory
+    scanner_module.async_session = original_async_session
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -33,12 +39,36 @@ async def db_session():
 
 
 @pytest.fixture
-async def client(db_session: AsyncSession):
+async def db_session(session_factory) -> AsyncSession:
+    async with session_factory() as session:
+        yield session
+
+
+@pytest.fixture
+async def client(session_factory):
     async def override_get_db():
-        yield db_session
+        async with session_factory() as session:
+            yield session
 
     app.dependency_overrides[get_db] = override_get_db
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_global_state():
+    def discard_background_task(coro):
+        coro.close()
+        return None
+
+    with patch(
+        "app.api.routes.scans.create_background_task",
+        side_effect=discard_background_task,
+    ):
+        cache_module._client = None
+        scanner_module._running_processes.clear()
+        yield
+        cache_module._client = None
+        scanner_module._running_processes.clear()

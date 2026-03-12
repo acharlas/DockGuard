@@ -8,11 +8,13 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from app.api.routes import health, scans
 from app.config import settings
 from app.db.session import engine
+from app.services.scanner import reconcile_interrupted_scans
 from app.tasks import _background_tasks
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await reconcile_interrupted_scans()
     yield
     for task in _background_tasks:
         task.cancel()

@@ -59,7 +59,7 @@ async def test_metrics_recorded_after_successful_scan(db_session):
         "app.services.scanner.asyncio.create_subprocess_exec",
         return_value=fake_process,
     ):
-        await _execute_scan(db_session, scan.id)
+        await _execute_scan(scan.id)
 
     assert (
         REGISTRY.get_sample_value("dockguard_scans_total", {"status": "completed"}) or 0
