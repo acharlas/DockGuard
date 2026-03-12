@@ -77,7 +77,9 @@ def _normalize_percent(value: object) -> float | None:
     return round(percent, 2)
 
 
-def _collect_duplicate_file_sizes(file_references: object) -> tuple[dict[str, int], int | None]:
+def _collect_duplicate_file_sizes(
+    file_references: object,
+) -> tuple[dict[str, int], int | None]:
     if not isinstance(file_references, list):
         return {}, None
 
@@ -119,7 +121,9 @@ def _derive_layer_waste_from_files(
     derived_waste_by_layer: dict[int, int] = {}
 
     for index, layer in enumerate(raw_layers):
-        file_list = layer.get("fileList") if isinstance(layer.get("fileList"), list) else []
+        file_list = (
+            layer.get("fileList") if isinstance(layer.get("fileList"), list) else []
+        )
         current_paths = {
             path
             for item in file_list
@@ -156,7 +160,13 @@ def _build_contributor_rows(
         path = _get_candidate(reference, "file", "path")
         size_bytes = _coerce_int(_get_candidate(reference, "sizeBytes", "size"))
         count = _coerce_int(reference.get("count"))
-        if not isinstance(path, str) or not path or size_bytes is None or not count or count < 2:
+        if (
+            not isinstance(path, str)
+            or not path
+            or size_bytes is None
+            or not count
+            or count < 2
+        ):
             continue
 
         wasted_bytes = size_bytes * (count - 1)
@@ -216,7 +226,9 @@ def log_build_runtime_status() -> None:
         logger.warning("Build analysis unavailable: docker CLI is missing")
         return
     if not os.path.exists("/var/run/docker.sock"):
-        logger.warning("Build analysis unavailable: /var/run/docker.sock is not mounted")
+        logger.warning(
+            "Build analysis unavailable: /var/run/docker.sock is not mounted"
+        )
 
 
 def parse_dive_report(report: dict | None) -> tuple[dict | None, dict | None]:
@@ -315,7 +327,13 @@ def parse_dive_report(report: dict | None) -> tuple[dict | None, dict | None]:
         layers.append(
             {
                 "index": index,
-                "layer_id": _get_candidate(layer, "digestId", "id", "digest", "layerId"),
+                "layer_id": _get_candidate(
+                    layer,
+                    "digestId",
+                    "id",
+                    "digest",
+                    "layerId",
+                ),
                 "instruction": _get_candidate(
                     layer,
                     "command",
@@ -330,19 +348,15 @@ def parse_dive_report(report: dict | None) -> tuple[dict | None, dict | None]:
             }
         )
 
-    layer_count = _coerce_int(_get_candidate(report, "layerCount")) or len(raw_layers) or None
+    layer_count = (
+        _coerce_int(_get_candidate(report, "layerCount")) or len(raw_layers) or None
+    )
     meaningful_layers = sorted(
-        (
-            layer
-            for layer in layers
-            if (layer.get("wasted_bytes") or 0) > 0
-        ),
+        (layer for layer in layers if (layer.get("wasted_bytes") or 0) > 0),
         key=lambda layer: layer.get("wasted_bytes") or 0,
         reverse=True,
     )[:_MAX_REPORTED_LAYERS]
-    inefficient_layer_count = (
-        len(meaningful_layers) or len(contributor_rows) or None
-    )
+    inefficient_layer_count = len(meaningful_layers) or len(contributor_rows) or None
 
     if wasted_percent is None and image_size and wasted_bytes is not None:
         wasted_percent = round((wasted_bytes / image_size) * 100, 2)
@@ -358,7 +372,9 @@ def parse_dive_report(report: dict | None) -> tuple[dict | None, dict | None]:
     if all(value is None for value in summary.values()):
         return None, None
 
-    reduced_report = {"layers": meaningful_layers or contributor_rows[:_MAX_REPORTED_LAYERS]}
+    reduced_report = {
+        "layers": meaningful_layers or contributor_rows[:_MAX_REPORTED_LAYERS]
+    }
     return summary, reduced_report
 
 

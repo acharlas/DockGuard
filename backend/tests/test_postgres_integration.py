@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.db.session import get_db
 from app.main import app
 from app.models.scan import ScanResult, ScanStatus
-from app.services.dive import BuildAnalysisResult
 from app.services import scanner as scanner_module
+from app.services.dive import BuildAnalysisResult
 
 FIXTURES = Path(__file__).parent / "fixtures"
 POSTGRES_TEST_DATABASE_URL = os.getenv("POSTGRES_TEST_DATABASE_URL")
