@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import {
   cancelScan,
@@ -11,17 +12,14 @@ import {
   Stats,
   Vulnerability,
 } from "@/lib/api";
+import {
+  SEVERITY_COLORS,
+  SEVERITY_ORDER,
+  SEVERITY_STYLES,
+} from "@/lib/constants";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { StatusBadge } from "@/components/StatusBadge";
 import { SkeletonStatCards } from "@/components/Skeleton";
-
-const SEVERITY_COLORS: Record<string, string> = {
-  CRITICAL: "#dc2626",
-  HIGH: "#ea580c",
-  MEDIUM: "#ca8a04",
-  LOW: "#2563eb",
-};
-
-const SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 
 export default function Dashboard() {
   const [image, setImage] = useState("");
@@ -110,12 +108,12 @@ export default function Dashboard() {
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <a
+          <Link
             href="/scans"
             className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
           >
             Scan history →
-          </a>
+          </Link>
           <ThemeToggle />
         </div>
       </div>
@@ -369,27 +367,6 @@ function ScanSpinner() {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    pending:
-      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-    running:
-      "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-    completed:
-      "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-    failed: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-    cancelled: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-  };
-
-  return (
-    <span
-      className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[status] ?? "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300"}`}
-    >
-      {status}
-    </span>
-  );
-}
-
 function ElapsedTimer({ startedAt }: { startedAt: string }) {
   const [elapsed, setElapsed] = useState(
     Math.floor((Date.now() - Date.parse(startedAt)) / 1000)
@@ -432,19 +409,11 @@ function StatCard({
 }
 
 function VulnRow({ vuln }: { vuln: Vulnerability }) {
-  const severityStyles: Record<string, string> = {
-    CRITICAL: "text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950/50",
-    HIGH: "text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950/50",
-    MEDIUM:
-      "text-yellow-700 bg-yellow-50 dark:text-yellow-400 dark:bg-yellow-950/50",
-    LOW: "text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950/50",
-  };
-
   return (
     <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
       <td className="px-6 py-3">
         <span
-          className={`px-2 py-0.5 rounded text-xs font-medium ${severityStyles[vuln.severity] ?? ""}`}
+          className={`px-2 py-0.5 rounded text-xs font-medium ${SEVERITY_STYLES[vuln.severity] ?? ""}`}
         >
           {vuln.severity}
         </span>

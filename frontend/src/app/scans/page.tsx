@@ -1,22 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { listScans, Scan } from "@/lib/api";
+import { STATUS_STYLES } from "@/lib/constants";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SkeletonTableRows } from "@/components/Skeleton";
 
-const STATUS_STYLES: Record<string, string> = {
-  pending:
-    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  running:
-    "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  completed:
-    "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  failed: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  cancelled: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-};
-
 export default function ScansPage() {
+  const router = useRouter();
   const [scans, setScans] = useState<Scan[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -39,12 +32,12 @@ export default function ScansPage() {
     <main className="max-w-6xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
-          <a
+          <Link
             href="/"
             className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
           >
             ← Back
-          </a>
+          </Link>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             Scan History
           </h1>
@@ -77,12 +70,12 @@ export default function ScansPage() {
                     className="px-6 py-12 text-center text-gray-400 dark:text-gray-600 text-sm"
                   >
                     No scans yet — run your first scan from the{" "}
-                    <a
+                    <Link
                       href="/"
                       className="text-blue-600 dark:text-blue-400 hover:underline"
                     >
                       dashboard
-                    </a>
+                    </Link>
                   </td>
                 </tr>
               ) : (
@@ -90,7 +83,7 @@ export default function ScansPage() {
                   <tr
                     key={scan.id}
                     className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
-                    onClick={() => (window.location.href = `/scans/${scan.id}`)}
+                    onClick={() => router.push(`/scans/${scan.id}`)}
                   >
                     <td className="px-6 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">
                       {scan.image_name}

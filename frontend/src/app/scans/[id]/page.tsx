@@ -1,32 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { getScan, ScanDetail, Vulnerability } from "@/lib/api";
+import {
+  SEVERITY_ORDER,
+  SEVERITY_STYLES,
+  STATUS_STYLES,
+} from "@/lib/constants";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SkeletonDetailPage } from "@/components/Skeleton";
-
-const SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
-
-const SEVERITY_STYLES: Record<string, string> = {
-  CRITICAL:
-    "text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950/50",
-  HIGH: "text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950/50",
-  MEDIUM:
-    "text-yellow-700 bg-yellow-50 dark:text-yellow-400 dark:bg-yellow-950/50",
-  LOW: "text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950/50",
-};
-
-const STATUS_STYLES: Record<string, string> = {
-  pending:
-    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  running:
-    "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  completed:
-    "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  failed: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  cancelled: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-};
 
 export default function ScanDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -70,12 +54,12 @@ export default function ScanDetailPage() {
     <main className="max-w-6xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4 min-w-0">
-          <a
+          <Link
             href="/scans"
             className="shrink-0 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
           >
             ← History
-          </a>
+          </Link>
           <h1 className="text-xl font-bold font-mono text-gray-900 dark:text-gray-100 truncate">
             {scan.image_name}
           </h1>
