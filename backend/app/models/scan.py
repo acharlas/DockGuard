@@ -25,7 +25,7 @@ class ScanResult(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     image_name: Mapped[str] = mapped_column(String(255))
     image_digest: Mapped[str | None] = mapped_column(String(255))
-    scan_status: Mapped[str] = mapped_column(String(20), default="pending")
+    scan_status: Mapped[str] = mapped_column(String(20), default=ScanStatus.PENDING)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

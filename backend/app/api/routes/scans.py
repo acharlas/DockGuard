@@ -46,12 +46,12 @@ async def create_scan(body: ScanCreate, db: AsyncSession = Depends(get_db)):
 async def list_scans(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
-    status: str | None = None,
+    status: ScanStatus | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(ScanResult).order_by(ScanResult.created_at.desc())
+    query = select(ScanResult).options(defer(ScanResult.raw_report)).order_by(ScanResult.created_at.desc())
     count_query = select(func.count()).select_from(ScanResult)
 
     if status:
