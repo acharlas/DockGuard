@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { GRAFANA_URL } from "@/lib/constants";
 
 const NAV_ITEMS = [
   { href: "/", label: "Analysis" },
@@ -22,6 +21,81 @@ function isActiveRoute(pathname: string, href: string) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL?.trim() || null;
+
+  const renderPrimaryNavLinks = ({
+    mobile = false,
+    onNavigate,
+  }: {
+    mobile?: boolean;
+    onNavigate?: () => void;
+  }) => {
+    const linkClassName = mobile
+      ? "block rounded-[20px] border px-4 py-3 text-sm font-medium transition-colors"
+      : "flex items-center justify-between rounded-[22px] border px-4 py-3 text-sm font-medium transition-colors";
+
+    const renderPrimaryLink = (href: string, label: string) => {
+      const active = isActiveRoute(pathname, href);
+
+      return (
+        <Link
+          key={href}
+          href={href}
+          onClick={onNavigate}
+          aria-current={active ? "page" : undefined}
+          className={`${linkClassName} ${
+            active
+              ? "border-amber-300 bg-amber-100/80 text-amber-950 shadow-[0_10px_30px_rgba(217,119,6,0.12)] dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
+              : "border-transparent text-[color:var(--dockguard-muted)] hover:border-[color:var(--dockguard-border)] hover:bg-[color:var(--dockguard-panel)] hover:text-[color:var(--dockguard-ink)]"
+          }`}
+        >
+          <span>{label}</span>
+          {!mobile && (
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                active
+                  ? "bg-amber-500 dark:bg-amber-400"
+                  : "bg-stone-300 dark:bg-stone-700"
+              }`}
+            />
+          )}
+        </Link>
+      );
+    };
+
+    return <>{NAV_ITEMS.map((item) => renderPrimaryLink(item.href, item.label))}</>;
+  };
+
+  const renderGrafanaLink = ({
+    mobile = false,
+    onNavigate,
+  }: {
+    mobile?: boolean;
+    onNavigate?: () => void;
+  }) => {
+    if (!grafanaUrl) {
+      return null;
+    }
+
+    const linkClassName = mobile
+      ? "inline-flex items-center justify-between rounded-[20px] border px-4 py-3 text-sm font-medium transition-colors"
+      : "inline-flex items-center justify-between rounded-[22px] border px-4 py-3 text-sm font-medium transition-colors";
+
+    return (
+      <a
+        href={grafanaUrl}
+        target="_blank"
+        rel="noreferrer noopener"
+        onClick={onNavigate}
+        className={`${linkClassName} border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] text-[color:var(--dockguard-muted)] hover:border-amber-300 hover:text-[color:var(--dockguard-ink)]`}
+      >
+        <span>Grafana</span>
+        {!mobile && (
+          <span className="text-xs text-[color:var(--dockguard-muted)]">↗</span>
+        )}
+      </a>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[color:var(--dockguard-bg)] text-[color:var(--dockguard-ink)]">
@@ -41,39 +115,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
 
             <nav className="space-y-2" aria-label="Primary navigation">
-              {NAV_ITEMS.map((item) => {
-                const active = isActiveRoute(pathname, item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`flex items-center justify-between rounded-[22px] border px-4 py-3 text-sm font-medium transition-colors ${
-                      active
-                        ? "border-amber-300 bg-amber-100/80 text-amber-950 shadow-[0_10px_30px_rgba(217,119,6,0.12)] dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
-                        : "border-transparent text-[color:var(--dockguard-muted)] hover:border-[color:var(--dockguard-border)] hover:bg-[color:var(--dockguard-panel)] hover:text-[color:var(--dockguard-ink)]"
-                    }`}
-                  >
-                    <span>{item.label}</span>
-                    <span
-                      className={`h-2.5 w-2.5 rounded-full ${
-                        active ? "bg-amber-500 dark:bg-amber-400" : "bg-stone-300 dark:bg-stone-700"
-                      }`}
-                    />
-                  </Link>
-                );
-              })}
+              {renderPrimaryNavLinks({})}
             </nav>
           </div>
-
-          <a
-            href={GRAFANA_URL}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="inline-flex items-center justify-between rounded-[22px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-4 py-3 text-sm font-medium text-[color:var(--dockguard-muted)] transition-colors hover:border-amber-300 hover:text-[color:var(--dockguard-ink)]"
-          >
-            <span>Grafana</span>
-            <span className="text-xs text-[color:var(--dockguard-muted)]">↗</span>
-          </a>
+          {renderGrafanaLink({})}
         </aside>
 
         <div className="min-h-screen">
@@ -152,34 +197,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
 
                 <nav className="space-y-2" aria-label="Mobile navigation">
-                  {NAV_ITEMS.map((item) => {
-                    const active = isActiveRoute(pathname, item.href);
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setMobileOpen(false)}
-                        className={`block rounded-[20px] border px-4 py-3 text-sm font-medium transition-colors ${
-                          active
-                            ? "border-amber-300 bg-amber-100/80 text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
-                            : "border-transparent text-[color:var(--dockguard-muted)] hover:border-[color:var(--dockguard-border)] hover:bg-[color:var(--dockguard-panel)] hover:text-[color:var(--dockguard-ink)]"
-                        }`}
-                      >
-                        {item.label}
-                      </Link>
-                    );
+                  {renderPrimaryNavLinks({
+                    mobile: true,
+                    onNavigate: () => setMobileOpen(false),
                   })}
                 </nav>
-
-                <a
-                  href={GRAFANA_URL}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="inline-flex items-center justify-between rounded-[20px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-4 py-3 text-sm font-medium text-[color:var(--dockguard-muted)] transition-colors hover:border-amber-300 hover:text-[color:var(--dockguard-ink)]"
-                >
-                  <span>Grafana</span>
-                  <span className="text-xs text-[color:var(--dockguard-muted)]">↗</span>
-                </a>
+                {renderGrafanaLink({
+                  mobile: true,
+                  onNavigate: () => setMobileOpen(false),
+                })}
               </div>
             </div>
           )}

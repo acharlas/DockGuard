@@ -1,4 +1,3 @@
-import "@testing-library/jest-dom";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Dashboard from "@/app/page";
@@ -119,8 +118,16 @@ test("submits scan and displays security workspace after completion", async () =
     expect(screen.getByText("Vulnerabilities (2)")).toBeInTheDocument();
   });
 
-  expect(screen.getAllByText("CVE-2024-0001").length).toBeGreaterThan(0);
+  const criticalCve = screen.getAllByText("CVE-2024-0001")[0];
+  const highCve = screen.getAllByText("CVE-2024-0002")[0];
+
+  expect(criticalCve).toBeInTheDocument();
   expect(screen.getAllByText("CRITICAL").length).toBeGreaterThan(0);
+  expect(criticalCve.className).not.toEqual(highCve.className);
+  expect(criticalCve.closest("tr")?.getAttribute("style")).toContain("inset 3px 0 0");
+  expect(criticalCve.closest("tr")?.getAttribute("style")).not.toEqual(
+    highCve.closest("tr")?.getAttribute("style")
+  );
 });
 
 test("switches to the build tab and renders build metrics", async () => {

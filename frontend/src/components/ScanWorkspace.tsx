@@ -3,7 +3,10 @@
 import { useMemo, useState } from "react";
 import { BuildLayer, BuildSummary, ScanDetail, Vulnerability } from "@/lib/api";
 import { formatBytes, formatPercent, formatScore } from "@/lib/format";
-import { SEVERITY_COLORS, SEVERITY_ORDER, SEVERITY_STYLES } from "@/lib/constants";
+import {
+  getSeverityPresentation,
+  SEVERITY_ORDER,
+} from "@/lib/constants";
 import { StatusBadge } from "@/components/StatusBadge";
 
 type WorkspaceTab = "security" | "build";
@@ -135,53 +138,52 @@ function SecurityWorkspace({
                   </td>
                 </tr>
               ) : (
-                vulnerabilities.map((vulnerability, index) => (
-                  <tr
-                    key={`${vulnerability.vuln_id}-${index}`}
-                    className="transition-colors hover:bg-amber-50/50 dark:hover:bg-amber-950/10"
-                    style={{
-                      boxShadow: `inset 3px 0 0 ${
-                        SEVERITY_COLORS[vulnerability.severity] ?? SEVERITY_COLORS.UNKNOWN
-                      }`,
-                    }}
-                  >
-                    <td className="px-5 py-3">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${SEVERITY_STYLES[vulnerability.severity] ?? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"}`}
-                      >
-                        {vulnerability.severity}
-                      </span>
-                    </td>
-                    <td
-                      className="px-5 py-3 font-mono text-xs font-semibold"
+                vulnerabilities.map((vulnerability, index) => {
+                  const severityPresentation = getSeverityPresentation(
+                    vulnerability.severity
+                  );
+
+                  return (
+                    <tr
+                      key={`${vulnerability.vuln_id}-${index}`}
+                      className="transition-colors hover:bg-amber-50/50 dark:hover:bg-amber-950/10"
                       style={{
-                        color:
-                          SEVERITY_COLORS[vulnerability.severity] ??
-                          SEVERITY_COLORS.UNKNOWN,
+                        boxShadow: `inset 3px 0 0 ${severityPresentation.color}`,
                       }}
                     >
-                      {vulnerability.vuln_id}
-                    </td>
-                    <td className="px-5 py-3 text-[color:var(--dockguard-ink)]">
-                      {vulnerability.package_name}
-                    </td>
-                    <td className="px-5 py-3 font-mono text-xs text-[color:var(--dockguard-muted)]">
-                      {vulnerability.installed_version}
-                    </td>
-                    <td className="px-5 py-3 font-mono text-xs">
-                      {vulnerability.fixed_version ? (
-                        <span className="text-emerald-600 dark:text-emerald-400">
-                          {vulnerability.fixed_version}
+                      <td className="px-5 py-3">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${severityPresentation.badgeClassName}`}
+                        >
+                          {vulnerability.severity}
                         </span>
-                      ) : (
-                        <span className="text-[color:var(--dockguard-muted)]">No fix</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-[color:var(--dockguard-muted)]">
-                      {vulnerability.title}
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td
+                        className={`px-5 py-3 font-mono text-xs font-semibold ${severityPresentation.textClassName}`}
+                      >
+                        {vulnerability.vuln_id}
+                      </td>
+                      <td className="px-5 py-3 text-[color:var(--dockguard-ink)]">
+                        {vulnerability.package_name}
+                      </td>
+                      <td className="px-5 py-3 font-mono text-xs text-[color:var(--dockguard-muted)]">
+                        {vulnerability.installed_version}
+                      </td>
+                      <td className="px-5 py-3 font-mono text-xs">
+                        {vulnerability.fixed_version ? (
+                          <span className="text-emerald-600 dark:text-emerald-400">
+                            {vulnerability.fixed_version}
+                          </span>
+                        ) : (
+                          <span className="text-[color:var(--dockguard-muted)]">No fix</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3 text-[color:var(--dockguard-muted)]">
+                        {vulnerability.title}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

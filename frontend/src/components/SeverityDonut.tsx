@@ -1,5 +1,5 @@
 import { ScanSummary } from "@/lib/api";
-import { SEVERITY_COLORS, SEVERITY_ORDER } from "@/lib/constants";
+import { getSeverityPresentation, SEVERITY_ORDER } from "@/lib/constants";
 
 const RADIUS = 42;
 const STROKE_WIDTH = 12;
@@ -72,7 +72,7 @@ export function SeverityDonut({
                 cx="60"
                 cy="60"
                 r={RADIUS}
-                stroke={SEVERITY_COLORS[segment.severity]}
+                stroke={getSeverityPresentation(segment.severity).color}
                 strokeWidth={STROKE_WIDTH}
                 fill="transparent"
                 strokeDasharray={`${segment.dash} ${CIRCUMFERENCE - segment.dash}`}
@@ -102,7 +102,9 @@ export function SeverityDonut({
             <div className="flex items-center gap-3">
               <span
                 className="h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: SEVERITY_COLORS[item.severity] }}
+                style={{
+                  backgroundColor: getSeverityPresentation(item.severity).color,
+                }}
               />
               <span className="text-sm font-medium text-[color:var(--dockguard-ink)]">
                 {item.severity}

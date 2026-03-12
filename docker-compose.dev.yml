@@ -71,15 +71,20 @@ services:
     build:
       context: ./frontend
       target: builder
+      args:
+        API_URL: http://backend:8000
+        NEXT_PUBLIC_GRAFANA_URL: http://localhost:3001
     restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/jest.config.js:/app/jest.config.js
+      - ./frontend/jest.setup.js:/app/jest.setup.js
       - ./frontend/tsconfig.json:/app/tsconfig.json
     environment:
       API_URL: http://backend:8000
+      NEXT_PUBLIC_GRAFANA_URL: http://localhost:3001
     depends_on:
       - backend
     command: npm run dev

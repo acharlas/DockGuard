@@ -68,6 +68,8 @@ docker compose up --build
 > **API access:** The default stack exposes only the frontend. Browser API calls go through the Next.js route-handler proxy. Use `docker compose -f docker-compose.dev.yml up` if you want direct access to Swagger at `http://localhost:8000/docs`.
 >
 > **Build analysis:** The backend mounts `/var/run/docker.sock` so Dive can inspect real images. Set `DOCKER_GID` to the socket group on your host before starting the stack.
+>
+> **Grafana sidebar link:** The local Docker Compose stacks bake `http://localhost:3001` into the frontend build. For any other environment, set `NEXT_PUBLIC_GRAFANA_URL` explicitly before building the frontend image. If it is unset, the Grafana button is hidden.
 
 ### Populate demo data
 

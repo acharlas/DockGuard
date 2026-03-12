@@ -5,7 +5,9 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 ARG API_URL=http://localhost:8000
+ARG NEXT_PUBLIC_GRAFANA_URL=
 ENV API_URL=$API_URL
+ENV NEXT_PUBLIC_GRAFANA_URL=$NEXT_PUBLIC_GRAFANA_URL
 RUN npm run build
 
 FROM node:22-alpine AS runtime
