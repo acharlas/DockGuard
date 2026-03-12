@@ -19,7 +19,7 @@ FROM python:3.12-slim AS runtime
 ARG DOCKGUARD_UID=10001
 ARG DOCKGUARD_GID=10001
 ARG DIVE_VERSION=0.13.1
-ARG DOCKER_CLI_VERSION=29.1.2
+ARG DOCKER_CLI_VERSION=29.3.0
 ARG TARGETARCH=amd64
 
 # Apply OS security patches + install Trivy, Docker CLI, and Dive in a single layer.
