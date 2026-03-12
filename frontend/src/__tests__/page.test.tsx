@@ -76,20 +76,6 @@ const mockScanDetail = {
   ],
 };
 
-const mockStats = {
-  total_scans: 8,
-  completed_scans: 6,
-  failed_scans: 1,
-  severity_breakdown: { critical: 3, high: 4, medium: 2, low: 1, unknown: 0 },
-  build_breakdown: { completed: 5, failed: 1, unavailable: 0 },
-  avg_efficiency_score: 0.87,
-  total_wasted_bytes: 18450000,
-  top_cves: [
-    { vuln_id: "CVE-2024-0001", count: 3, severity: "CRITICAL", title: "Buffer overflow" },
-  ],
-  top_images: [{ image_name: "nginx:latest", scan_count: 4 }],
-};
-
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((res) => {
@@ -98,55 +84,26 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-jest.mock("next/link", () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const React = require("react");
-  return {
-    __esModule: true,
-    default: ({
-      children,
-      href,
-    }: {
-      children: React.ReactNode;
-      href: string;
-    }) => React.createElement("a", { href }, children),
-  };
-});
-
 beforeEach(() => {
   jest.restoreAllMocks();
   jest.useRealTimers();
 });
 
-test("renders command deck with input and action button", async () => {
-  global.fetch = jest.fn((url: string) => {
-    if (url === "/api/v1/stats") {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockStats) });
-    }
-    return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
-  }) as jest.Mock;
-
+test("renders the lean analysis shell", () => {
   render(<Dashboard />);
 
-  await waitFor(() => {
-    expect(screen.getByText("Coverage")).toBeInTheDocument();
-  });
-  expect(
-    screen.getByPlaceholderText(/enter image name/i)
-  ).toBeInTheDocument();
-  expect(
-    screen.getByRole("button", { name: /run analysis/i })
-  ).toBeInTheDocument();
-  expect(screen.getByText(/container image analysis dashboard/i)).toBeInTheDocument();
+  expect(screen.getByText("Scan an image")).toBeInTheDocument();
+  expect(screen.getByPlaceholderText("nginx:latest")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /run analysis/i })).toBeInTheDocument();
+  expect(screen.getByText("Issues")).toBeInTheDocument();
+  expect(screen.queryByText("Coverage")).not.toBeInTheDocument();
+  expect(screen.queryByText("Total scans")).not.toBeInTheDocument();
 });
 
 test("submits scan and displays security workspace after completion", async () => {
   const user = userEvent.setup();
 
   global.fetch = jest.fn((url: string, options?: RequestInit) => {
-    if (url === "/api/v1/stats") {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockStats) });
-    }
     if (options?.method === "POST" && url === "/api/v1/scans") {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanResponse) });
     }
@@ -155,24 +112,21 @@ test("submits scan and displays security workspace after completion", async () =
 
   render(<Dashboard />);
 
-  await user.type(screen.getByPlaceholderText(/enter image name/i), "nginx:latest");
+  await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
 
   await waitFor(() => {
-    expect(screen.getByText("Security Findings")).toBeInTheDocument();
+    expect(screen.getByText("Vulnerabilities (2)")).toBeInTheDocument();
   });
 
   expect(screen.getAllByText("CVE-2024-0001").length).toBeGreaterThan(0);
-  expect(screen.getByText("Build")).toBeInTheDocument();
+  expect(screen.getAllByText("CRITICAL").length).toBeGreaterThan(0);
 });
 
 test("switches to the build tab and renders build metrics", async () => {
   const user = userEvent.setup();
 
   global.fetch = jest.fn((url: string, options?: RequestInit) => {
-    if (url === "/api/v1/stats") {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockStats) });
-    }
     if (options?.method === "POST" && url === "/api/v1/scans") {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanResponse) });
     }
@@ -181,11 +135,11 @@ test("switches to the build tab and renders build metrics", async () => {
 
   render(<Dashboard />);
 
-  await user.type(screen.getByPlaceholderText(/enter image name/i), "nginx:latest");
+  await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
 
   await waitFor(() => {
-    expect(screen.getByText("Security Findings")).toBeInTheDocument();
+    expect(screen.getByText("Vulnerabilities (2)")).toBeInTheDocument();
   });
 
   await user.click(screen.getAllByRole("button", { name: "Build" })[0]);
@@ -199,9 +153,6 @@ test("shows queue message when scan queue is full", async () => {
   const user = userEvent.setup();
 
   global.fetch = jest.fn((url: string, options?: RequestInit) => {
-    if (url === "/api/v1/stats") {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockStats) });
-    }
     if (options?.method === "POST" && url === "/api/v1/scans") {
       return Promise.resolve({
         ok: false,
@@ -214,13 +165,11 @@ test("shows queue message when scan queue is full", async () => {
 
   render(<Dashboard />);
 
-  await user.type(screen.getByPlaceholderText(/enter image name/i), "nginx:latest");
+  await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
 
   await waitFor(() => {
-    expect(
-      screen.getByText("Scan queue is full. Try again later.")
-    ).toBeInTheDocument();
+    expect(screen.getByText("Scan queue is full. Try again later.")).toBeInTheDocument();
   });
 });
 
@@ -236,9 +185,6 @@ test("renders cached completed scans without starting a poll loop", async () => 
   };
 
   global.fetch = jest.fn((url: string, options?: RequestInit) => {
-    if (url === "/api/v1/stats") {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockStats) });
-    }
     if (options?.method === "POST" && url === "/api/v1/scans") {
       return Promise.resolve({
         ok: true,
@@ -249,32 +195,29 @@ test("renders cached completed scans without starting a poll loop", async () => 
     if (url === "/api/v1/scans/1") {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
     }
-    return Promise.resolve({ ok: true, json: () => Promise.resolve(mockStats) });
+    return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
   }) as jest.Mock;
 
   render(<Dashboard />);
 
-  await user.type(screen.getByPlaceholderText(/enter image name/i), "nginx:latest");
+  await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
 
   await waitFor(() => {
-    expect(screen.getByText("Security Findings")).toBeInTheDocument();
+    expect(screen.getByText("Vulnerabilities (2)")).toBeInTheDocument();
   });
 
   const scanDetailFetches = (global.fetch as jest.Mock).mock.calls.filter(
     ([url, options]) => url === "/api/v1/scans/1" && !options?.method
   );
   expect(scanDetailFetches).toHaveLength(1);
-  expect(screen.queryByRole("button", { name: /cancel scan/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^cancel$/i })).not.toBeInTheDocument();
 });
 
 test("shows queued label for pending scans without started_at", async () => {
   const user = userEvent.setup();
 
   global.fetch = jest.fn((url: string, options?: RequestInit) => {
-    if (url === "/api/v1/stats") {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockStats) });
-    }
     if (options?.method === "POST" && url === "/api/v1/scans") {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanResponse) });
     }
@@ -286,7 +229,7 @@ test("shows queued label for pending scans without started_at", async () => {
 
   render(<Dashboard />);
 
-  await user.type(screen.getByPlaceholderText(/enter image name/i), "nginx:latest");
+  await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
 
   await waitFor(() => {
@@ -333,18 +276,12 @@ test("ignores stale poll responses after cancel and restart", async () => {
   };
 
   global.fetch = jest.fn((url: string, options?: RequestInit) => {
-    if (url === "/api/v1/stats") {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockStats) });
-    }
     if (options?.method === "POST" && url === "/api/v1/scans") {
       const body = JSON.parse(String(options.body));
       if (body.image === "nginx:latest") {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanResponse) });
       }
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve(secondScanResponse),
-      });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(secondScanResponse) });
     }
     if (options?.method === "POST" && url === "/api/v1/scans/1/cancel") {
       return Promise.resolve({
@@ -363,20 +300,20 @@ test("ignores stale poll responses after cancel and restart", async () => {
     if (url === "/api/v1/scans/2") {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(secondScanDetail) });
     }
-    return Promise.resolve({ ok: true, json: () => Promise.resolve(mockStats) });
+    return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
   }) as jest.Mock;
 
   render(<Dashboard />);
 
-  await user.type(screen.getByPlaceholderText(/enter image name/i), "nginx:latest");
+  await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
   await waitFor(() => {
-    expect(screen.getByRole("button", { name: /cancel scan/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^cancel$/i })).toBeInTheDocument();
   });
 
-  await user.click(screen.getByRole("button", { name: /cancel scan/i }));
+  await user.click(screen.getByRole("button", { name: /^cancel$/i }));
 
-  const input = screen.getByPlaceholderText(/enter image name/i);
+  const input = screen.getByPlaceholderText("nginx:latest");
   await user.clear(input);
   await user.type(input, "alpine:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
@@ -400,9 +337,6 @@ test("keeps polling when running cancel is still settling", async () => {
   let scanPolls = 0;
 
   global.fetch = jest.fn((url: string, options?: RequestInit) => {
-    if (url === "/api/v1/stats") {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockStats) });
-    }
     if (options?.method === "POST" && url === "/api/v1/scans") {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanResponse) });
     }
@@ -424,19 +358,19 @@ test("keeps polling when running cancel is still settling", async () => {
     if (options?.method === "POST" && url === "/api/v1/scans/1/cancel") {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(mockRunningScanDetail) });
     }
-    return Promise.resolve({ ok: true, json: () => Promise.resolve(mockStats) });
+    return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
   }) as jest.Mock;
 
   render(<Dashboard />);
 
-  await user.type(screen.getByPlaceholderText(/enter image name/i), "nginx:latest");
+  await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
 
   await waitFor(() => {
-    expect(screen.getByRole("button", { name: /cancel scan/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^cancel$/i })).toBeInTheDocument();
   });
 
-  await user.click(screen.getByRole("button", { name: /cancel scan/i }));
+  await user.click(screen.getByRole("button", { name: /^cancel$/i }));
 
   await waitFor(() => {
     expect(screen.getAllByText("cancelled").length).toBeGreaterThan(0);
@@ -449,9 +383,6 @@ test("refreshes terminal state when cancel returns 409", async () => {
   let scanFetches = 0;
 
   global.fetch = jest.fn((url: string, options?: RequestInit) => {
-    if (url === "/api/v1/stats") {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockStats) });
-    }
     if (options?.method === "POST" && url === "/api/v1/scans") {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanResponse) });
     }
@@ -466,28 +397,25 @@ test("refreshes terminal state when cancel returns 409", async () => {
       return Promise.resolve({
         ok: false,
         status: 409,
-        json: () =>
-          Promise.resolve({
-            detail: "Cannot cancel a scan with status 'completed'",
-          }),
+        json: () => Promise.resolve({ detail: "Cannot cancel a scan with status 'completed'" }),
       });
     }
-    return Promise.resolve({ ok: true, json: () => Promise.resolve(mockStats) });
+    return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
   }) as jest.Mock;
 
   render(<Dashboard />);
 
-  await user.type(screen.getByPlaceholderText(/enter image name/i), "nginx:latest");
+  await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
 
   await waitFor(() => {
-    expect(screen.getByRole("button", { name: /cancel scan/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^cancel$/i })).toBeInTheDocument();
   });
 
-  await user.click(screen.getByRole("button", { name: /cancel scan/i }));
+  await user.click(screen.getByRole("button", { name: /^cancel$/i }));
 
   await waitFor(() => {
-    expect(screen.getByText("Security Findings")).toBeInTheDocument();
+    expect(screen.getByText("Vulnerabilities (2)")).toBeInTheDocument();
   });
 
   expect(screen.queryByText("Failed to cancel scan.")).not.toBeInTheDocument();
@@ -504,9 +432,6 @@ test("clears pending poll timer on unmount", async () => {
   };
 
   global.fetch = jest.fn((url: string, options?: RequestInit) => {
-    if (url === "/api/v1/stats") {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(mockStats) });
-    }
     if (options?.method === "POST" && url === "/api/v1/scans") {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanResponse) });
     }
@@ -514,19 +439,19 @@ test("clears pending poll timer on unmount", async () => {
   }) as jest.Mock;
 
   const view = render(<Dashboard />);
-  await user.type(screen.getByPlaceholderText(/enter image name/i), "nginx:latest");
+  await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
 
   await waitFor(() => {
-    expect(screen.getByRole("button", { name: /cancel scan/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^cancel$/i })).toBeInTheDocument();
   });
 
-  expect(global.fetch).toHaveBeenCalledTimes(3);
+  expect(global.fetch).toHaveBeenCalledTimes(2);
   view.unmount();
 
   await act(async () => {
     jest.advanceTimersByTime(2500);
   });
 
-  expect(global.fetch).toHaveBeenCalledTimes(3);
+  expect(global.fetch).toHaveBeenCalledTimes(2);
 });

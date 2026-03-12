@@ -1,22 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import {
-  ApiError,
-  cancelScan,
-  createScan,
-  getScan,
-  getStats,
-  ScanDetail,
-  Stats,
-} from "@/lib/api";
-import { formatBytes, formatScore } from "@/lib/format";
+import { useEffect, useState } from "react";
+import { ApiError, cancelScan, createScan, getScan, ScanDetail } from "@/lib/api";
 import { SCAN_STATUS } from "@/lib/constants";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ScanWorkspace } from "@/components/ScanWorkspace";
-import { SkeletonStatCards } from "@/components/Skeleton";
+import { SeverityDonut } from "@/components/SeverityDonut";
 
 function isActiveScanStatus(status: string) {
   return status === SCAN_STATUS.PENDING || status === SCAN_STATUS.RUNNING;
@@ -27,27 +16,7 @@ export default function Dashboard() {
   const [scan, setScan] = useState<ScanDetail | null>(null);
   const [activeScanId, setActiveScanId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [statsLoading, setStatsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
-
-  const refreshStats = useCallback((showLoading: boolean) => {
-    if (showLoading) {
-      setStatsLoading(true);
-    }
-    return getStats()
-      .then(setStats)
-      .catch((fetchError) => console.error("Failed to load stats", fetchError))
-      .finally(() => {
-        if (showLoading) {
-          setStatsLoading(false);
-        }
-      });
-  }, []);
-
-  useEffect(() => {
-    void refreshStats(true);
-  }, [refreshStats]);
 
   useEffect(() => {
     if (activeScanId === null) {
@@ -71,7 +40,6 @@ export default function Dashboard() {
         }
         setActiveScanId(null);
         setLoading(false);
-        void refreshStats(false);
       } catch (err) {
         if (cancelled) {
           return;
@@ -94,7 +62,7 @@ export default function Dashboard() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [activeScanId, refreshStats]);
+  }, [activeScanId]);
 
   const handleScan = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -117,7 +85,6 @@ export default function Dashboard() {
       const detail = await getScan(created.id);
       setScan(detail);
       setLoading(false);
-      void refreshStats(false);
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
         setError(err.detail ?? "Scan queue is full. Try again later.");
@@ -132,19 +99,23 @@ export default function Dashboard() {
     if (!scan) {
       return;
     }
+
     const scanId = scan.id;
     setActiveScanId(null);
+
     try {
       const updated = await cancelScan(scanId);
       setScan((current) =>
-        current ? { ...current, ...updated } : { ...updated, vulnerabilities: [], build: null }
+        current
+          ? { ...current, ...updated }
+          : { ...updated, vulnerabilities: [], build: null }
       );
+
       if (isActiveScanStatus(updated.scan_status)) {
         setLoading(true);
         setActiveScanId(scanId);
       } else {
         setLoading(false);
-        void refreshStats(false);
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
@@ -152,8 +123,8 @@ export default function Dashboard() {
           const latest = await getScan(scanId);
           setScan(latest);
           setLoading(false);
-          if (!isActiveScanStatus(latest.scan_status)) {
-            void refreshStats(false);
+          if (isActiveScanStatus(latest.scan_status)) {
+            setActiveScanId(scanId);
           }
           return;
         } catch {
@@ -169,290 +140,128 @@ export default function Dashboard() {
   const isActiveScan = scan ? isActiveScanStatus(scan.scan_status) : false;
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-10 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-      <header className="flex flex-col gap-5 rounded-[30px] border border-slate-200/80 bg-white/85 px-5 py-5 shadow-[0_24px_90px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80 dark:shadow-none sm:px-7">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="space-y-6 lg:space-y-8">
+      <section className="rounded-[30px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] p-5 shadow-[0_18px_48px_rgba(120,53,15,0.08)] sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-500 dark:text-slate-400">
-              DockGuard
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--dockguard-muted)]">
+              Analysis
             </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50 sm:text-4xl">
-              Container image analysis dashboard
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[color:var(--dockguard-ink)] sm:text-4xl">
+              Scan an image
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300 sm:text-base">
-              Paste a Docker image and get one scan workspace with two lenses: Security for package risk and Build for layer efficiency.
-            </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/scans"
-              className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-950 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+          {scan && (
+            <div className="flex items-center gap-2">
+              <StatusBadge status={scan.scan_status} />
+              {scan.build_status && <StatusBadge status={scan.build_status} />}
+            </div>
+          )}
+        </div>
+
+        <form
+          onSubmit={handleScan}
+          className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]"
+        >
+          <label className="block">
+            <span className="sr-only">Docker image reference</span>
+            <input
+              type="text"
+              value={image}
+              onChange={(event) => setImage(event.target.value)}
+              placeholder="nginx:latest"
+              className="w-full rounded-[22px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-4 py-4 font-mono text-sm text-[color:var(--dockguard-ink)] placeholder:text-[color:var(--dockguard-muted)] focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+              disabled={loading}
+            />
+          </label>
+
+          <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+            <button
+              type="submit"
+              disabled={loading || !image.trim()}
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Scan history
-            </Link>
-            <ThemeToggle />
-          </div>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-[1.35fr_0.85fr]">
-          <section className="rounded-[28px] bg-slate-950 px-5 py-6 text-white dark:bg-slate-900 sm:px-7">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">
-              Command Deck
-            </p>
-            <form onSubmit={handleScan} className="mt-6 space-y-4">
-              <label className="block">
-                <span className="mb-2 block text-sm text-slate-300">
-                  Docker image reference
-                </span>
-                <input
-                  type="text"
-                  value={image}
-                  onChange={(event) => setImage(event.target.value)}
-                  placeholder="Enter image name (e.g. nginx:latest)"
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 font-mono text-sm text-white placeholder:text-slate-500 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/20"
-                  disabled={loading}
-                />
-              </label>
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="submit"
-                  disabled={loading || !image.trim()}
-                  className="inline-flex items-center gap-2 rounded-full bg-sky-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {loading ? (
-                    <>
-                      <ScanSpinner />
-                      Running analysis
-                    </>
-                  ) : (
-                    "Run analysis"
-                  )}
-                </button>
-                {scan && isActiveScan && (
-                  <button
-                    type="button"
-                    onClick={handleCancel}
-                    className="rounded-full border border-white/15 px-4 py-3 text-sm text-slate-300 transition hover:border-rose-400 hover:text-rose-300"
-                  >
-                    Cancel scan
-                  </button>
-                )}
-              </div>
-            </form>
-            {error && (
-              <div className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                {error}
-              </div>
+              {loading ? (
+                <>
+                  <ScanSpinner />
+                  Running
+                </>
+              ) : (
+                "Run analysis"
+              )}
+            </button>
+            {scan && isActiveScan && (
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="rounded-full border border-[color:var(--dockguard-border)] px-4 py-3 text-sm font-medium text-[color:var(--dockguard-muted)] transition hover:border-rose-300 hover:text-rose-700 dark:hover:text-rose-300"
+              >
+                Cancel
+              </button>
             )}
-          </section>
-
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-            <InsightPanel
-              label="Coverage"
-              title="Security + Build"
-              description="One scan ID now carries both package risk and image construction quality."
-            />
-            <InsightPanel
-              label="Execution"
-              title={scan ? scan.scan_status : "idle"}
-              description={
-                scan
-                  ? `Current image: ${scan.image_name}`
-                  : "No active analysis. Use the command deck to open a scan workspace."
-              }
-              footer={scan ? <StatusBadge status={scan.scan_status} /> : undefined}
-            />
-          </section>
-        </div>
-      </header>
-
-      <section>
-        {statsLoading ? (
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
-            <SkeletonStatCards count={6} />
           </div>
-        ) : stats ? (
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
-            <StatCard label="Total scans" value={String(stats.total_scans)} />
-            <StatCard label="Completed" value={String(stats.completed_scans)} />
-            <StatCard label="Critical CVEs" value={String(stats.severity_breakdown.critical)} accent="text-rose-600 dark:text-rose-400" />
-            <StatCard label="Build analyses" value={String(stats.build_breakdown.completed)} />
-            <StatCard label="Avg efficiency" value={formatScore(stats.avg_efficiency_score)} />
-            <StatCard label="Wasted bytes" value={formatBytes(stats.total_wasted_bytes)} />
+        </form>
+
+        {error && (
+          <div className="mt-4 rounded-[20px] border border-rose-300/40 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200">
+            {error}
           </div>
-        ) : null}
+        )}
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-        {scan ? (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-slate-200 bg-white/80 px-5 py-4 dark:border-slate-800 dark:bg-slate-950/80">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
-                  Active Workspace
-                </p>
-                <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-slate-50">
-                  {scan.image_name}
-                </h2>
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_320px] xl:items-start">
+        <div className="min-w-0">
+          {scan ? (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] px-5 py-4">
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-xs text-[color:var(--dockguard-muted)]">
+                    {scan.image_name}
+                  </p>
+                  {scan.image_digest && (
+                    <p className="mt-2 truncate font-mono text-[11px] text-[color:var(--dockguard-muted)]">
+                      {scan.image_digest}
+                    </p>
+                  )}
+                </div>
                 {isActiveScan && (
-                  <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-                    {scan.scan_status === SCAN_STATUS.RUNNING && scan.started_at
-                      ? "Live scan"
-                      : "Queued"}
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--dockguard-muted)]">
+                    {scan.scan_status === SCAN_STATUS.RUNNING ? "Running" : "Queued"}
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                <StatusBadge status={scan.scan_status} />
-                {scan.build_status && <StatusBadge status={scan.build_status} />}
-              </div>
+              <ScanWorkspace key={scan.id} scan={scan} compact />
             </div>
-            <ScanWorkspace key={scan.id} scan={scan} compact />
-          </div>
-        ) : (
-          <EmptyWorkspace />
-        )}
-
-        <div className="space-y-6">
-          <Panel title="Most scanned images" eyebrow="Overview">
-            <div className="space-y-3">
-              {stats?.top_images.length ? (
-                stats.top_images.map((item) => (
-                  <div
-                    key={item.image_name}
-                    className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60"
-                  >
-                    <span className="truncate font-mono text-xs text-slate-700 dark:text-slate-300">
-                      {item.image_name}
-                    </span>
-                    <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                      {item.scan_count}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  No completed scans yet.
-                </p>
-              )}
-            </div>
-          </Panel>
-
-          <Panel title="Top CVEs" eyebrow="Security heat">
-            <div className="space-y-3">
-              {stats?.top_cves.length ? (
-                stats.top_cves.slice(0, 5).map((cve) => (
-                  <div
-                    key={cve.vuln_id}
-                    className="rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-mono text-xs text-slate-700 dark:text-slate-300">
-                        {cve.vuln_id}
-                      </span>
-                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        {cve.count}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                      {cve.title || cve.severity}
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  No vulnerability trends yet.
-                </p>
-              )}
-            </div>
-          </Panel>
+          ) : (
+            <EmptyWorkspace />
+          )}
         </div>
+
+        <SeverityDonut summary={scan?.summary ?? null} />
       </section>
-    </main>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  accent = "text-slate-950 dark:text-slate-50",
-}: {
-  label: string;
-  value: string;
-  accent?: string;
-}) {
-  return (
-    <div className="rounded-[24px] border border-slate-200/80 bg-white/85 px-5 py-5 shadow-[0_18px_48px_rgba(15,23,42,0.06)] dark:border-slate-800 dark:bg-slate-950/80 dark:shadow-none">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
-        {label}
-      </p>
-      <p className={`mt-3 text-2xl font-semibold ${accent}`}>{value}</p>
     </div>
-  );
-}
-
-function InsightPanel({
-  label,
-  title,
-  description,
-  footer,
-}: {
-  label: string;
-  title: string;
-  description: string;
-  footer?: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-[26px] border border-slate-200/80 bg-white/85 px-5 py-5 dark:border-slate-800 dark:bg-slate-950/80">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
-        {label}
-      </p>
-      <h2 className="mt-3 text-xl font-semibold text-slate-950 dark:text-slate-50">
-        {title}
-      </h2>
-      <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-        {description}
-      </p>
-      {footer && <div className="mt-4">{footer}</div>}
-    </div>
-  );
-}
-
-function Panel({
-  eyebrow,
-  title,
-  children,
-}: {
-  eyebrow: string;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-[28px] border border-slate-200/80 bg-white/85 px-5 py-5 shadow-[0_18px_48px_rgba(15,23,42,0.06)] dark:border-slate-800 dark:bg-slate-950/80 dark:shadow-none">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
-        {eyebrow}
-      </p>
-      <h2 className="mt-3 text-xl font-semibold text-slate-950 dark:text-slate-50">
-        {title}
-      </h2>
-      <div className="mt-5">{children}</div>
-    </section>
   );
 }
 
 function EmptyWorkspace() {
   return (
-    <section className="rounded-[28px] border border-dashed border-slate-300 bg-white/80 px-6 py-10 dark:border-slate-700 dark:bg-slate-950/80">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
-        Analysis Workspace
-      </p>
-      <h2 className="mt-3 text-2xl font-semibold text-slate-950 dark:text-slate-50">
-        No scan selected yet
-      </h2>
-      <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-        Run a scan from the command deck to open the Security and Build workspace. Completed scans render here immediately, while active scans stay live until the analysis pipeline settles.
+    <section className="rounded-[30px] border border-dashed border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] px-6 py-10 sm:px-8">
+      <div className="inline-flex rounded-full border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] p-1">
+        <DisabledTab label="Security" />
+        <DisabledTab label="Build" />
+      </div>
+      <p className="mt-6 text-sm text-[color:var(--dockguard-muted)]">
+        Run a scan to open the workspace.
       </p>
     </section>
+  );
+}
+
+function DisabledTab({ label }: { label: string }) {
+  return (
+    <span className="rounded-full px-4 py-2 text-sm font-medium text-[color:var(--dockguard-muted)]">
+      {label}
+    </span>
   );
 }
 

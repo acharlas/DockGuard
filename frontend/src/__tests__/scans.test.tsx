@@ -8,21 +8,6 @@ jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 
-jest.mock("next/link", () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const React = require("react");
-  return {
-    __esModule: true,
-    default: ({
-      children,
-      href,
-    }: {
-      children: React.ReactNode;
-      href: string;
-    }) => React.createElement("a", { href }, children),
-  };
-});
-
 const mockScans = {
   items: [
     {
@@ -56,14 +41,15 @@ beforeEach(() => {
   mockPush.mockClear();
 });
 
-test("renders scan history heading", async () => {
+test("renders history heading", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({ ok: true, json: () => Promise.resolve(mockScans) })
   ) as jest.Mock;
 
   render(<ScansPage />);
 
-  expect(screen.getByText("Scan history")).toBeInTheDocument();
+  expect(screen.getByText("History")).toBeInTheDocument();
+  expect(screen.getByText("Scan runs")).toBeInTheDocument();
 });
 
 test("renders scan rows from API with build status", async () => {
@@ -80,11 +66,9 @@ test("renders scan rows from API with build status", async () => {
   expect(screen.getByText("alpine:3.19")).toBeInTheDocument();
   expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
   expect(screen.getByText("unavailable")).toBeInTheDocument();
-  expect(screen.getByText("2 scans recorded")).toBeInTheDocument();
+  expect(screen.getByText("2 scans")).toBeInTheDocument();
   expect(screen.getByText("Submitted")).toBeInTheDocument();
-  expect(
-    screen.getByText(new Date("2026-03-11T00:00:00Z").toLocaleString())
-  ).toBeInTheDocument();
+  expect(screen.getByText(new Date("2026-03-11T00:00:00Z").toLocaleString())).toBeInTheDocument();
 });
 
 test("shows empty state when no scans exist", async () => {

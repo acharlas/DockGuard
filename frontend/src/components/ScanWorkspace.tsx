@@ -1,14 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  BuildLayer,
-  BuildSummary,
-  ScanDetail,
-  Vulnerability,
-} from "@/lib/api";
+import { BuildLayer, BuildSummary, ScanDetail, Vulnerability } from "@/lib/api";
 import { formatBytes, formatPercent, formatScore } from "@/lib/format";
-import { SEVERITY_ORDER, SEVERITY_STYLES } from "@/lib/constants";
+import { SEVERITY_COLORS, SEVERITY_ORDER, SEVERITY_STYLES } from "@/lib/constants";
 import { StatusBadge } from "@/components/StatusBadge";
 
 type WorkspaceTab = "security" | "build";
@@ -39,23 +34,18 @@ export function ScanWorkspace({
   const buildSummary = scan.build?.summary;
 
   return (
-    <section className="rounded-[28px] border border-slate-200/80 bg-white/90 shadow-[0_24px_80px_rgba(15,23,42,0.08)] dark:border-slate-800 dark:bg-slate-950/80 dark:shadow-none overflow-hidden">
-      <div className="flex flex-col gap-4 border-b border-slate-200/80 bg-slate-50/80 px-5 py-5 dark:border-slate-800 dark:bg-slate-900/70 sm:px-7">
+    <section className="overflow-hidden rounded-[30px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] shadow-[0_24px_80px_rgba(120,53,15,0.08)]">
+      <div className="flex flex-col gap-4 border-b border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-5 py-5 sm:px-7">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
-              Analysis Workspace
-            </p>
-            <h2 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-100">
-              {scan.image_name}
-            </h2>
-          </div>
+          <h2 className="min-w-0 truncate font-mono text-sm text-[color:var(--dockguard-ink)] sm:text-base">
+            {scan.image_name}
+          </h2>
           <div className="flex items-center gap-2">
             <StatusBadge status={scan.scan_status} />
             {scan.build_status && <StatusBadge status={scan.build_status} />}
           </div>
         </div>
-        <div className="inline-flex w-full max-w-md rounded-full border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-950">
+        <div className="inline-flex w-full rounded-full border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] p-1">
           <TabButton
             label="Security"
             active={activeTab === "security"}
@@ -71,7 +61,7 @@ export function ScanWorkspace({
 
       <div className={compact ? "p-5 sm:p-7" : "p-6 sm:p-8"}>
         {activeTab === "security" ? (
-          <SecurityWorkspace scan={scan} vulnerabilities={vulnerabilities} />
+          <SecurityWorkspace vulnerabilities={vulnerabilities} />
         ) : (
           <BuildWorkspace
             buildStatus={scan.build_status ?? null}
@@ -100,8 +90,8 @@ function TabButton({
       onClick={onClick}
       className={`flex-1 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
         active
-          ? "bg-slate-900 text-white dark:bg-white dark:text-slate-950"
-          : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+          ? "bg-amber-600 text-white"
+          : "text-[color:var(--dockguard-muted)] hover:text-[color:var(--dockguard-ink)]"
       }`}
     >
       {label}
@@ -110,45 +100,21 @@ function TabButton({
 }
 
 function SecurityWorkspace({
-  scan,
   vulnerabilities,
 }: {
-  scan: ScanDetail;
   vulnerabilities: Vulnerability[];
 }) {
   return (
     <div className="space-y-7">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {SEVERITY_ORDER.map((severity) => {
-          const value =
-            scan.summary?.[
-              severity.toLowerCase() as keyof NonNullable<ScanDetail["summary"]>
-            ] ?? 0;
-          return (
-            <MetricCard
-              key={severity}
-              label={severity}
-              value={String(value)}
-              accent={SEVERITY_STYLES[severity]?.split(" ")[0] ?? "text-slate-900"}
-            />
-          );
-        })}
-      </div>
-
-      <div className="overflow-hidden rounded-[24px] border border-slate-200 dark:border-slate-800">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-900/70">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
-              Security Findings
-            </p>
-            <h3 className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-              Vulnerabilities ({vulnerabilities.length})
-            </h3>
-          </div>
+      <div className="overflow-hidden rounded-[24px] border border-[color:var(--dockguard-border)]">
+        <div className="border-b border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-5 py-4">
+          <h3 className="text-lg font-semibold text-[color:var(--dockguard-ink)]">
+            Vulnerabilities ({vulnerabilities.length})
+          </h3>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-white text-left text-[11px] uppercase tracking-[0.24em] text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+            <thead className="bg-[color:var(--dockguard-surface)] text-left text-[11px] uppercase tracking-[0.24em] text-[color:var(--dockguard-muted)]">
               <tr>
                 <th className="px-5 py-3">Severity</th>
                 <th className="px-5 py-3">CVE</th>
@@ -158,21 +124,26 @@ function SecurityWorkspace({
                 <th className="px-5 py-3">Title</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+            <tbody className="divide-y divide-[color:var(--dockguard-border)]">
               {vulnerabilities.length === 0 ? (
                 <tr>
                   <td
                     colSpan={6}
-                    className="px-5 py-12 text-center text-sm text-slate-500 dark:text-slate-400"
+                    className="px-5 py-12 text-center text-sm text-[color:var(--dockguard-muted)]"
                   >
-                    No vulnerabilities found for this image.
+                    No vulnerabilities found.
                   </td>
                 </tr>
               ) : (
                 vulnerabilities.map((vulnerability, index) => (
                   <tr
                     key={`${vulnerability.vuln_id}-${index}`}
-                    className="bg-white transition-colors hover:bg-slate-50 dark:bg-slate-950 dark:hover:bg-slate-900/70"
+                    className="transition-colors hover:bg-amber-50/50 dark:hover:bg-amber-950/10"
+                    style={{
+                      boxShadow: `inset 3px 0 0 ${
+                        SEVERITY_COLORS[vulnerability.severity] ?? SEVERITY_COLORS.UNKNOWN
+                      }`,
+                    }}
                   >
                     <td className="px-5 py-3">
                       <span
@@ -181,13 +152,20 @@ function SecurityWorkspace({
                         {vulnerability.severity}
                       </span>
                     </td>
-                    <td className="px-5 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">
+                    <td
+                      className="px-5 py-3 font-mono text-xs font-semibold"
+                      style={{
+                        color:
+                          SEVERITY_COLORS[vulnerability.severity] ??
+                          SEVERITY_COLORS.UNKNOWN,
+                      }}
+                    >
                       {vulnerability.vuln_id}
                     </td>
-                    <td className="px-5 py-3 text-slate-700 dark:text-slate-200">
+                    <td className="px-5 py-3 text-[color:var(--dockguard-ink)]">
                       {vulnerability.package_name}
                     </td>
-                    <td className="px-5 py-3 font-mono text-xs text-slate-500 dark:text-slate-400">
+                    <td className="px-5 py-3 font-mono text-xs text-[color:var(--dockguard-muted)]">
                       {vulnerability.installed_version}
                     </td>
                     <td className="px-5 py-3 font-mono text-xs">
@@ -196,12 +174,10 @@ function SecurityWorkspace({
                           {vulnerability.fixed_version}
                         </span>
                       ) : (
-                        <span className="text-slate-400 dark:text-slate-500">
-                          No fix
-                        </span>
+                        <span className="text-[color:var(--dockguard-muted)]">No fix</span>
                       )}
                     </td>
-                    <td className="px-5 py-3 text-slate-500 dark:text-slate-400">
+                    <td className="px-5 py-3 text-[color:var(--dockguard-muted)]">
                       {vulnerability.title}
                     </td>
                   </tr>
@@ -231,7 +207,7 @@ function BuildWorkspace({
       <EmptyBuildState
         reason={buildFailureReason}
         title="Build analysis unavailable"
-        message="This scan does not have Dive output yet. Historical scans remain readable, but only newer runs include Build data."
+        message="No build report on this scan yet."
       />
     );
   }
@@ -240,8 +216,8 @@ function BuildWorkspace({
     return (
       <EmptyBuildState
         reason={buildFailureReason}
-        title="Build analysis could not complete"
-        message="Security results are available, but Build analysis could not be collected for this scan."
+        title="Build analysis failed"
+        message="Security results are available, but the build report is not."
       />
     );
   }
@@ -265,28 +241,22 @@ function BuildWorkspace({
           label="Wasted Percent"
           value={formatPercent(buildSummary.wasted_percent)}
         />
-        <MetricCard
-          label="Layers"
-          value={String(buildSummary.layer_count ?? "—")}
-        />
+        <MetricCard label="Layers" value={String(buildSummary.layer_count ?? "—")} />
         <MetricCard
           label="Waste Contributors"
           value={String(buildSummary.inefficient_layer_count ?? "—")}
         />
       </div>
 
-      <div className="overflow-hidden rounded-[24px] border border-slate-200 dark:border-slate-800">
-        <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-900/70">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
-            Build Waste
-          </p>
-          <h3 className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+      <div className="overflow-hidden rounded-[24px] border border-[color:var(--dockguard-border)]">
+        <div className="border-b border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-5 py-4">
+          <h3 className="text-lg font-semibold text-[color:var(--dockguard-ink)]">
             Highest waste contributors
           </h3>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-white text-left text-[11px] uppercase tracking-[0.24em] text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+            <thead className="bg-[color:var(--dockguard-surface)] text-left text-[11px] uppercase tracking-[0.24em] text-[color:var(--dockguard-muted)]">
               <tr>
                 <th className="px-5 py-3">Rank</th>
                 <th className="px-5 py-3">Source</th>
@@ -296,38 +266,38 @@ function BuildWorkspace({
                 <th className="px-5 py-3">Efficiency</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+            <tbody className="divide-y divide-[color:var(--dockguard-border)]">
               {layers.length === 0 ? (
                 <tr>
                   <td
                     colSpan={6}
-                    className="px-5 py-12 text-center text-sm text-slate-500 dark:text-slate-400"
+                    className="px-5 py-12 text-center text-sm text-[color:var(--dockguard-muted)]"
                   >
-                    No layer-level waste data available.
+                    No waste data available.
                   </td>
                 </tr>
               ) : (
                 layers.map((layer) => (
                   <tr
                     key={`${layer.layer_id ?? "layer"}-${layer.index}`}
-                    className="bg-white transition-colors hover:bg-slate-50 dark:bg-slate-950 dark:hover:bg-slate-900/70"
+                    className="transition-colors hover:bg-amber-50/50 dark:hover:bg-amber-950/10"
                   >
-                    <td className="px-5 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">
+                    <td className="px-5 py-3 font-mono text-xs text-[color:var(--dockguard-ink)]">
                       #{layer.index + 1}
                     </td>
-                    <td className="px-5 py-3 text-slate-700 dark:text-slate-200">
+                    <td className="px-5 py-3 text-[color:var(--dockguard-ink)]">
                       <div className="max-w-lg truncate">{layer.instruction ?? "—"}</div>
                     </td>
-                    <td className="px-5 py-3 font-mono text-xs text-slate-500 dark:text-slate-400">
+                    <td className="px-5 py-3 font-mono text-xs text-[color:var(--dockguard-muted)]">
                       {formatBytes(layer.size_bytes)}
                     </td>
                     <td className="px-5 py-3 font-mono text-xs text-amber-700 dark:text-amber-300">
                       {formatBytes(layer.wasted_bytes)}
                     </td>
-                    <td className="px-5 py-3 font-mono text-xs text-slate-500 dark:text-slate-400">
+                    <td className="px-5 py-3 font-mono text-xs text-[color:var(--dockguard-muted)]">
                       {formatPercent(layer.wasted_percent)}
                     </td>
-                    <td className="px-5 py-3 font-mono text-xs text-slate-500 dark:text-slate-400">
+                    <td className="px-5 py-3 font-mono text-xs text-[color:var(--dockguard-muted)]">
                       {formatScore(layer.efficiency_score)}
                     </td>
                   </tr>
@@ -344,15 +314,15 @@ function BuildWorkspace({
 function MetricCard({
   label,
   value,
-  accent = "text-slate-900 dark:text-slate-100",
+  accent = "text-[color:var(--dockguard-ink)]",
 }: {
   label: string;
   value: string;
   accent?: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-slate-200 bg-slate-50/60 px-5 py-5 dark:border-slate-800 dark:bg-slate-900/60">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
+    <div className="rounded-[22px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-5 py-5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--dockguard-muted)]">
         {label}
       </p>
       <p className={`mt-3 text-2xl font-semibold ${accent}`}>{value}</p>
@@ -370,18 +340,11 @@ function EmptyBuildState({
   reason: string | null;
 }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50/80 px-6 py-10 dark:border-slate-700 dark:bg-slate-900/60">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
-        Build Lens
-      </p>
-      <h3 className="mt-3 text-xl font-semibold text-slate-900 dark:text-slate-100">
-        {title}
-      </h3>
-      <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-        {message}
-      </p>
+    <div className="rounded-[24px] border border-dashed border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-6 py-10">
+      <h3 className="text-xl font-semibold text-[color:var(--dockguard-ink)]">{title}</h3>
+      <p className="mt-3 text-sm leading-6 text-[color:var(--dockguard-muted)]">{message}</p>
       {reason && (
-        <p className="mt-4 font-mono text-xs uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+        <p className="mt-4 font-mono text-xs uppercase tracking-[0.2em] text-[color:var(--dockguard-muted)]">
           reason: {reason}
         </p>
       )}

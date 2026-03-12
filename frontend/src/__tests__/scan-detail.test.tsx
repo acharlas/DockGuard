@@ -7,21 +7,6 @@ jest.mock("next/navigation", () => ({
   useParams: () => ({ id: "1" }),
 }));
 
-jest.mock("next/link", () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const React = require("react");
-  return {
-    __esModule: true,
-    default: ({
-      children,
-      href,
-    }: {
-      children: React.ReactNode;
-      href: string;
-    }) => React.createElement("a", { href }, children),
-  };
-});
-
 const mockScanDetail = {
   id: 1,
   image_name: "nginx:latest",
@@ -81,7 +66,7 @@ beforeEach(() => {
   jest.restoreAllMocks();
 });
 
-test("renders scan image name and status", async () => {
+test("renders scan image name, status, and issue card", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) })
   ) as jest.Mock;
@@ -94,6 +79,7 @@ test("renders scan image name and status", async () => {
 
   expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
   expect(screen.getByText("sha256:abc")).toBeInTheDocument();
+  expect(screen.getByText("Issues")).toBeInTheDocument();
 });
 
 test("renders vulnerability workspace by default", async () => {
@@ -104,7 +90,7 @@ test("renders vulnerability workspace by default", async () => {
   render(<ScanDetailPage />);
 
   await waitFor(() => {
-    expect(screen.getByText("Security Findings")).toBeInTheDocument();
+    expect(screen.getByText("Vulnerabilities (2)")).toBeInTheDocument();
   });
 
   expect(screen.getAllByText("CVE-2024-0001").length).toBeGreaterThan(0);
@@ -121,7 +107,7 @@ test("build tab renders layer insights", async () => {
   render(<ScanDetailPage />);
 
   await waitFor(() => {
-    expect(screen.getByText("Security Findings")).toBeInTheDocument();
+    expect(screen.getByText("Vulnerabilities (2)")).toBeInTheDocument();
   });
 
   await user.click(screen.getByRole("button", { name: "Build" }));
