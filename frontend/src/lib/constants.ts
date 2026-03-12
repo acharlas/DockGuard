@@ -23,6 +23,8 @@ export const SEVERITY_STYLES: Record<string, string> = {
   MEDIUM:
     "text-yellow-700 bg-yellow-50 dark:text-yellow-400 dark:bg-yellow-950/50",
   LOW: "text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950/50",
+  UNKNOWN:
+    "text-gray-600 bg-gray-50 dark:text-gray-400 dark:bg-gray-950/50",
 };
 
 export const SEVERITY_COLORS: Record<string, string> = {
@@ -30,6 +32,7 @@ export const SEVERITY_COLORS: Record<string, string> = {
   HIGH: "#ea580c",
   MEDIUM: "#ca8a04",
   LOW: "#2563eb",
+  UNKNOWN: "#6b7280",
 };
 
-export const SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+export const SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"];

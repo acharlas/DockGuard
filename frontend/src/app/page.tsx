@@ -13,6 +13,7 @@ import {
   Vulnerability,
 } from "@/lib/api";
 import {
+  SCAN_STATUS,
   SEVERITY_COLORS,
   SEVERITY_ORDER,
   SEVERITY_STYLES,
@@ -41,7 +42,7 @@ export default function Dashboard() {
     try {
       const data = await getScan(id);
       setScan(data);
-      if (data.scan_status === "pending" || data.scan_status === "running") {
+      if (data.scan_status === SCAN_STATUS.PENDING || data.scan_status === SCAN_STATUS.RUNNING) {
         setTimeout(() => pollScan(id), 2000);
       } else {
         setLoading(false);
@@ -186,7 +187,7 @@ export default function Dashboard() {
           </span>
           <span className="text-gray-300 dark:text-gray-700">—</span>
           <StatusBadge status={scan.scan_status} />
-          {(scan.scan_status === "pending" || scan.scan_status === "running") && (
+          {(scan.scan_status === SCAN_STATUS.PENDING || scan.scan_status === SCAN_STATUS.RUNNING) && (
             <>
               <ElapsedTimer startedAt={scan.started_at} />
               <button
@@ -202,7 +203,7 @@ export default function Dashboard() {
 
       {/* Scanning skeleton */}
       {scan &&
-        (scan.scan_status === "pending" || scan.scan_status === "running") && (
+        (scan.scan_status === SCAN_STATUS.PENDING || scan.scan_status === SCAN_STATUS.RUNNING) && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6">
               <div className="skeleton-shimmer h-5 rounded w-40 mb-4" />
