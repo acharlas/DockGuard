@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -19,6 +18,7 @@ from app.schemas.scan import (
 )
 from app.services.cache import get_cached_scan_id
 from app.services.scanner import cancel_scan, run_scan
+from app.tasks import create_background_task
 from app.services.trivy_parser import parse_vulnerabilities
 
 router = APIRouter()
@@ -38,7 +38,7 @@ async def create_scan(body: ScanCreate, db: AsyncSession = Depends(get_db)):
     db.add(scan)
     await db.commit()
     await db.refresh(scan)
-    asyncio.create_task(run_scan(scan.id))
+    create_background_task(run_scan(scan.id))
     return scan
 
 

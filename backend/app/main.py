@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -5,8 +7,19 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.api.routes import health, scans
 from app.config import settings
+from app.db.session import engine
+from app.tasks import _background_tasks
 
-app = FastAPI(title="DockGuard", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    for task in _background_tasks:
+        task.cancel()
+    await engine.dispose()
+
+
+app = FastAPI(title="DockGuard", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
