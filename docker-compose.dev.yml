@@ -24,6 +24,16 @@ services:
     volumes:
       - redisdata:/data
 
+  trivy-cache-init:
+    image: busybox:1.37.0
+    restart: "no"
+    user: "0:0"
+    command: >
+      sh -c "mkdir -p /cache/db /cache/fanal &&
+             chown -R 10001:10001 /cache"
+    volumes:
+      - trivycache:/cache
+
   backend:
     build:
       context: ./backend
@@ -41,11 +51,14 @@ services:
       DATABASE_URL: postgresql+asyncpg://dockguard:dockguard@postgres:5432/dockguard
       CORS_ORIGINS: '["http://localhost:3000"]'
       REDIS_URL: redis://redis:6379/0
+      MAX_PENDING_SCANS: 25
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
+      trivy-cache-init:
+        condition: service_completed_successfully
     command: >
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"

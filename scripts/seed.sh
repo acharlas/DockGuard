@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # seed.sh — Launch demo scans so Grafana and frontend are populated with data.
 # Usage: ./scripts/seed.sh [API_BASE_URL]
-# Default URL: http://localhost:8000/api/v1
+# Default URL: http://localhost:3000/api/v1
 
 set -euo pipefail
 
-API="${1:-http://localhost:8000/api/v1}"
+API="${1:-http://localhost:3000/api/v1}"
 POLL_INTERVAL=5
 POLL_TIMEOUT=660  # 11 minutes per scan (DB download + scan)
 

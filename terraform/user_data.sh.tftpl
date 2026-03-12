@@ -24,8 +24,6 @@ services:
   backend:
     image: ${backend_image}
     restart: unless-stopped
-    ports:
-      - "80:8000"
     environment:
       DATABASE_URL: ${database_url}
       CORS_ORIGINS: '${cors_origins}'
@@ -40,7 +38,7 @@ services:
     image: ${frontend_image}
     restart: unless-stopped
     ports:
-      - "443:3000"
+      - "80:3000"
     environment:
       API_URL: http://backend:8000
     depends_on:

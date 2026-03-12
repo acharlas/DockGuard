@@ -58,7 +58,7 @@ resource "aws_route_table_association" "public" {
 }
 
 # ── Security groups ───────────────────────────────────────────────────────────
-# EC2: inbound HTTP (80), HTTPS (443), SSH (22); full egress
+# EC2: inbound HTTP (80) and SSH (22); full egress
 resource "aws_security_group" "ec2" {
   name        = "${var.project}-ec2"
   description = "DockGuard application server"
@@ -68,14 +68,6 @@ resource "aws_security_group" "ec2" {
     description = "HTTP"
     from_port   = 80
     to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "HTTPS"
-    from_port   = 443
-    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }

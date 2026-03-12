@@ -7,6 +7,9 @@ RUN pip install --no-cache-dir .
 
 FROM python:3.12-slim AS runtime
 
+ARG DOCKGUARD_UID=10001
+ARG DOCKGUARD_GID=10001
+
 # Apply OS security patches + install Trivy in a single layer
 RUN apt-get update && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
@@ -20,7 +23,8 @@ RUN apt-get update && apt-get upgrade -y \
     && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN groupadd -r dockguard && useradd -r -g dockguard -d /home/dockguard -s /sbin/nologin dockguard \
+RUN groupadd -g ${DOCKGUARD_GID} dockguard \
+    && useradd -u ${DOCKGUARD_UID} -g dockguard -d /home/dockguard -s /usr/sbin/nologin dockguard \
     && mkdir -p /home/dockguard/.cache/trivy && chown -R dockguard:dockguard /home/dockguard
 
 WORKDIR /app

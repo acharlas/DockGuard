@@ -12,7 +12,7 @@
 ```mermaid
 graph TD
     Browser["Browser\n:3000"] -->|HTTP| Frontend["Next.js 14\nFrontend"]
-    Frontend -->|/api proxy| Backend["FastAPI\nBackend :8000"]
+    Frontend -->|route handler proxy| Backend["FastAPI\nBackend :8000"]
     Backend -->|asyncpg| DB[(PostgreSQL 16)]
     Backend -->|subprocess| Trivy["Trivy CLI\nasyncio.Semaphore(3)"]
     Backend -->|SETEX 10min| Redis[(Redis 7)]
@@ -38,7 +38,7 @@ graph TD
 | Frontend | Next.js 14 App Router, TypeScript, Tailwind CSS, Recharts |
 | Scanner | Trivy CLI (via `asyncio.create_subprocess_exec`, never `shell=True`) |
 | Database | PostgreSQL 16 (vulnerabilities stored as JSON in `raw_report`) |
-| Cache | Redis 7 (10-min TTL per image tag, graceful degradation) |
+| Cache | Redis 7 (10-min TTL for digest-pinned image reuse, graceful degradation) |
 | Monitoring | Prometheus + Grafana (4 custom metrics) |
 | IaC | Terraform — flat `main.tf`, EC2 + RDS, `templatefile()` user_data |
 | CI/CD | GitHub Actions — lint → test → build → security scan → push GHCR |
@@ -56,11 +56,14 @@ docker compose up --build
 | Service | URL |
 |---------|-----|
 | Dashboard | http://localhost:3000 |
-| API docs (Swagger) | http://localhost:8000/docs |
 | Grafana | http://localhost:3001 (admin / admin) |
 | Prometheus | http://localhost:9090 |
 
 > **First run:** The backend pre-warms the Trivy vulnerability database on startup (~50 MB download, ~1 min). Subsequent starts use the cached DB volume and are instant.
+>
+> **Cache permissions:** The Compose stack now runs a one-shot `trivy-cache-init` service that fixes ownership on the named Trivy cache volume before the backend starts. Rebuild the backend image after pulling these changes.
+>
+> **API access:** The default stack exposes only the frontend. Browser API calls go through the Next.js route-handler proxy. Use `docker compose -f docker-compose.dev.yml up` if you want direct access to Swagger at `http://localhost:8000/docs`.
 
 ### Populate demo data
 
@@ -111,25 +114,31 @@ The security gate (`--exit-code 1` on CRITICAL) means broken images never reach 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/v1/scans` | Initiate scan (202 Accepted, async) |
+| `POST` | `/api/v1/scans` | Initiate scan (`202` for new/in-flight work, `200` for digest-cached completed result, may return `429` when the queue is full) |
 | `GET` | `/api/v1/scans` | Paginated scan history (filters: `status`, `date_from`, `date_to`) |
 | `GET` | `/api/v1/scans/{id}` | Scan detail + parsed vulnerabilities |
 | `GET` | `/api/v1/stats` | Totals, severity breakdown, top 10 CVEs, top 5 images |
 | `GET` | `/api/v1/health` | Health check (DB ping) |
 | `GET` | `/metrics` | Prometheus metrics |
 
-Full interactive docs at `/docs` (Swagger UI) and `/redoc`.
+Direct backend docs are available in the dev stack at `http://localhost:8000/docs` and `http://localhost:8000/redoc`.
+
+The frontend proxies browser API calls through a Next.js route handler. For this MVP, abuse control is intentionally simple: duplicate suppression, queue caps, and bounded scan concurrency. There is no per-client rate limiting because the app does not have a trustworthy client-identity boundary.
+
+If the backend restarts, any `pending` or `running` scans are reconciled to `failed` with `failure_reason = "worker_restarted"`. The app does not try to fake durable in-process jobs.
 
 ### Async scan flow
 
 ```
-POST /scans → 202 (scan_status: "pending")
+POST /scans → existing pending/running scan returned when duplicate work is already in flight
+          ↓
+          202 (scan_status: "pending")  |  200 (completed digest cache hit)
                     ↓ asyncio background task
               scan_status: "running"  (Trivy subprocess starts)
                     ↓
-              scan_status: "completed" | "failed"  (raw_report + summary stored)
+              scan_status: "completed" | "failed" | "cancelled"
                     ↓
-              Redis cache set (10-min TTL)  →  next POST for same image returns cached result
+              Redis cache set for immutable digest  →  digest-pinned requests can reuse a recent completed result
 ```
 
 ---
@@ -173,10 +182,15 @@ cd terraform && terraform init && terraform validate
 |----------|-----------|
 | No `Vulnerability` table | Trivy JSON stored in `raw_report`, queried via PostgreSQL JSON operators. Denormalise only when slowness is proven, not assumed. |
 | `asyncio.Semaphore(3)` not a queue service | One line limits concurrency to 3 concurrent Trivy processes — zero extra infrastructure for a single-worker backend. |
-| Redis added at Day 5 | Not Day 1. Added when the use case was real (avoid re-scanning the same image within 10 min), not speculatively. |
+| Redis added at Day 5 | Not Day 1. Added when the use case was real (reuse digest-pinned scans safely), not speculatively. |
 | Flat Terraform (`main.tf`) | Modules add abstraction cost. For one VPC + one EC2 + one RDS, a flat file with clear comments is easier to read and review. |
 | `templatefile()` for `user_data` | Separates HCL interpolation from bash, avoiding nested heredoc parsing issues and making the bootstrap script testable independently. |
 | Per-scan Trivy cache dir | Concurrent scans get isolated `fanal` (image layer) cache dirs with a symlink to the shared pre-warmed DB — eliminates file lock contention without sacrificing DB caching. |
+
+## Deployment Notes
+
+- The sample Terraform deployment is HTTP-only on port `80`. It does not terminate TLS.
+- Restrict `ssh_allowed_cidr` explicitly in `terraform.tfvars`; there is no world-open SSH default anymore.
 
 ---
 
