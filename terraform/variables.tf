@@ -54,3 +54,9 @@ variable "ghcr_image_frontend" {
   description = "Full GHCR image reference for the frontend (e.g. ghcr.io/user/dockguard-frontend:latest)"
   type        = string
 }
+
+variable "cors_origins" {
+  description = "Allowed CORS origins for the backend API (JSON array string)"
+  type        = string
+  default     = "[\"*\"]"
+}

@@ -179,6 +179,7 @@ resource "aws_instance" "app" {
     backend_image  = var.ghcr_image_backend
     frontend_image = var.ghcr_image_frontend
     database_url   = "postgresql+asyncpg://dockguard:${var.db_password}@${aws_db_instance.postgres.address}:5432/dockguard"
+    cors_origins   = var.cors_origins
   })
 
   tags = { Name = "${var.project}-app" }
