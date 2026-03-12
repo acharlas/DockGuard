@@ -18,8 +18,8 @@ from app.schemas.scan import (
 )
 from app.services.cache import get_cached_scan_id
 from app.services.scanner import cancel_scan, run_scan
-from app.tasks import create_background_task
 from app.services.trivy_parser import parse_vulnerabilities
+from app.tasks import create_background_task
 
 router = APIRouter()
 
