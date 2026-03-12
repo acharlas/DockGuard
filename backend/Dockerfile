@@ -9,16 +9,32 @@ FROM python:3.12-slim AS runtime
 
 ARG DOCKGUARD_UID=10001
 ARG DOCKGUARD_GID=10001
+ARG DIVE_VERSION=0.13.1
+ARG DOCKER_CLI_VERSION=26.1.4
+ARG TARGETARCH=amd64
 
-# Apply OS security patches + install Trivy in a single layer
+# Apply OS security patches + install Trivy, Docker CLI, and Dive in a single layer.
 RUN apt-get update && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
-        wget apt-transport-https gnupg lsb-release \
+        wget apt-transport-https ca-certificates gnupg lsb-release \
     && wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
         | gpg --dearmor -o /usr/share/keyrings/trivy.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" \
         | tee /etc/apt/sources.list.d/trivy.list \
     && apt-get update && apt-get install -y --no-install-recommends trivy \
+    && case "${TARGETARCH}" in \
+        amd64) docker_arch="x86_64" ;; \
+        arm64) docker_arch="aarch64" ;; \
+        *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+       esac \
+    && wget -O /tmp/docker.tgz "https://download.docker.com/linux/static/stable/${docker_arch}/docker-${DOCKER_CLI_VERSION}.tgz" \
+    && tar -xzf /tmp/docker.tgz -C /tmp docker/docker \
+    && install -m 0755 /tmp/docker/docker /usr/local/bin/docker \
+    && rm -rf /tmp/docker.tgz /tmp/docker \
+    && wget -O /tmp/dive.tgz "https://github.com/wagoodman/dive/releases/download/v${DIVE_VERSION}/dive_${DIVE_VERSION}_linux_${TARGETARCH}.tar.gz" \
+    && tar -xzf /tmp/dive.tgz -C /usr/local/bin dive \
+    && chmod +x /usr/local/bin/dive \
+    && rm -f /tmp/dive.tgz \
     && apt-get purge -y wget gnupg lsb-release \
     && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 

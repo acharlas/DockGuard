@@ -8,8 +8,10 @@ from sqlalchemy.orm import defer, load_only
 
 from app.config import settings
 from app.db.session import get_db
-from app.models.scan import ScanResult, ScanStatus
+from app.models.scan import BuildStatus, ScanResult, ScanStatus
 from app.schemas.scan import (
+    BuildBreakdown,
+    BuildOut,
     ScanCreate,
     ScanDetailOut,
     ScanListOut,
@@ -31,6 +33,51 @@ _scan_admission_lock = asyncio.Lock()
 
 def _summary_value_expression(severity: str):
     return func.coalesce(ScanResult.summary[severity].as_integer(), 0)
+
+
+def _build_report_payload(report: dict | None) -> dict | None:
+    if not isinstance(report, dict):
+        return None
+
+    raw_layers = report.get("layers")
+    if not isinstance(raw_layers, list):
+        return {"layers": []}
+
+    layers = []
+    for index, layer in enumerate(raw_layers):
+        if not isinstance(layer, dict):
+            continue
+        layers.append(
+            {
+                "index": layer.get("index", index),
+                "layer_id": layer.get("layer_id") or layer.get("id"),
+                "instruction": layer.get("instruction") or layer.get("createdBy"),
+                "size_bytes": layer.get("size_bytes") or layer.get("sizeBytes"),
+                "wasted_bytes": layer.get("wasted_bytes") or layer.get("wastedBytes"),
+                "wasted_percent": layer.get("wasted_percent")
+                or layer.get("wastedPercent"),
+                "efficiency_score": layer.get("efficiency_score")
+                or layer.get("efficiencyScore"),
+            }
+        )
+    return {"layers": layers}
+
+
+def _build_payload(scan: ScanResult) -> BuildOut | None:
+    if (
+        scan.build_status is None
+        and scan.build_summary is None
+        and scan.build_report is None
+        and scan.build_failure_reason is None
+    ):
+        return None
+
+    return BuildOut(
+        status=scan.build_status or BuildStatus.UNAVAILABLE,
+        failure_reason=scan.build_failure_reason,
+        summary=scan.build_summary,
+        report=_build_report_payload(scan.build_report),
+    )
 
 
 async def _cancel_pending_if_still_pending(
@@ -140,7 +187,7 @@ async def list_scans(
 ):
     query = (
         select(ScanResult)
-        .options(defer(ScanResult.raw_report))
+        .options(defer(ScanResult.raw_report), defer(ScanResult.build_report))
         .order_by(ScanResult.created_at.desc())
     )
     count_query = select(func.count()).select_from(ScanResult)
@@ -252,6 +299,33 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
         for image_name, scan_count in top_image_result.all()
     ]
 
+    build_result = await db.execute(
+        select(ScanResult.build_status, ScanResult.build_summary).where(
+            ScanResult.scan_status == ScanStatus.COMPLETED
+        )
+    )
+    build_breakdown = {status.value: 0 for status in BuildStatus}
+    efficiency_scores: list[float] = []
+    total_wasted_bytes = 0
+    for build_status, build_summary in build_result.all():
+        if build_status in build_breakdown:
+            build_breakdown[build_status] += 1
+        if build_status != BuildStatus.COMPLETED or not isinstance(build_summary, dict):
+            continue
+        efficiency_score = build_summary.get("efficiency_score")
+        if isinstance(efficiency_score, (int, float)):
+            efficiency_scores.append(float(efficiency_score))
+        wasted_bytes = build_summary.get("wasted_bytes")
+        if isinstance(wasted_bytes, (int, float)):
+            total_wasted_bytes += int(wasted_bytes)
+
+    avg_efficiency_score = None
+    if efficiency_scores:
+        avg_efficiency_score = round(
+            sum(efficiency_scores) / len(efficiency_scores),
+            2,
+        )
+
     cve_result = await db.execute(
         select(ScanResult)
         .options(load_only(ScanResult.raw_report))
@@ -287,6 +361,9 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
             "low": low,
             "unknown": unknown,
         },
+        build_breakdown=BuildBreakdown(**build_breakdown),
+        avg_efficiency_score=avg_efficiency_score,
+        total_wasted_bytes=total_wasted_bytes,
         top_cves=[
             TopCve(
                 vuln_id=k,
@@ -313,9 +390,11 @@ async def get_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
         image_name=scan.image_name,
         image_digest=scan.image_digest,
         scan_status=scan.scan_status,
+        build_status=scan.build_status,
         started_at=scan.started_at,
         completed_at=scan.completed_at,
         summary=scan.summary,
         created_at=scan.created_at,
         vulnerabilities=vulns,
+        build=_build_payload(scan),
     )

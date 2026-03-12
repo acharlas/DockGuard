@@ -14,6 +14,12 @@ class ScanStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class BuildStatus(StrEnum):
+    COMPLETED = "completed"
+    FAILED = "failed"
+    UNAVAILABLE = "unavailable"
+
+
 class Base(DeclarativeBase):
     pass
 
@@ -36,6 +42,14 @@ class ScanResult(Base):
         JSON().with_variant(JSONB(), "postgresql")
     )
     raw_report: Mapped[dict | None] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql")
+    )
+    build_status: Mapped[str | None] = mapped_column(String(20))
+    build_failure_reason: Mapped[str | None] = mapped_column(String(255))
+    build_summary: Mapped[dict | None] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql")
+    )
+    build_report: Mapped[dict | None] = mapped_column(
         JSON().with_variant(JSONB(), "postgresql")
     )
     created_at: Mapped[datetime] = mapped_column(
