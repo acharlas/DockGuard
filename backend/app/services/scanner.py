@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db.session import async_session
-from app.models.scan import ScanResult
+from app.models.scan import ScanResult, ScanStatus
 from app.services.cache import cache_scan_result
 from app.services.metrics import (
     active_scans,
@@ -59,11 +59,11 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
         logger.error("Scan %d not found", scan_id)
         return
 
-    if scan.scan_status == "cancelled" or scan_id in _cancelled_scan_ids:
+    if scan.scan_status == ScanStatus.CANCELLED or scan_id in _cancelled_scan_ids:
         _cancelled_scan_ids.discard(scan_id)
         return
 
-    scan.scan_status = "running"
+    scan.scan_status = ScanStatus.RUNNING
     await db.commit()
 
     active_scans.inc()
@@ -107,7 +107,7 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
         report = json.loads(stdout.decode())
         scan.raw_report = report
         scan.summary = compute_summary(report)
-        scan.scan_status = "completed"
+        scan.scan_status = ScanStatus.COMPLETED
         scan.completed_at = datetime.now(timezone.utc)
         await cache_scan_result(scan.image_name, scan.id)
 
@@ -117,16 +117,16 @@ async def _execute_scan(db: AsyncSession, scan_id: int) -> None:
 
     except TimeoutError:
         logger.error("Scan %d timed out after %ds", scan_id, settings.trivy_timeout)
-        scan.scan_status = "failed"
+        scan.scan_status = ScanStatus.FAILED
         scan.completed_at = datetime.now(timezone.utc)
 
     except Exception:
         if scan_id in _cancelled_scan_ids:
             _cancelled_scan_ids.discard(scan_id)
-            scan.scan_status = "cancelled"
+            scan.scan_status = ScanStatus.CANCELLED
         else:
             logger.exception("Scan %d failed", scan_id)
-            scan.scan_status = "failed"
+            scan.scan_status = ScanStatus.FAILED
         scan.completed_at = datetime.now(timezone.utc)
 
     finally:

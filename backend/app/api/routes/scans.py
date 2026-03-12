@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.models.scan import ScanResult
+from app.models.scan import ScanResult, ScanStatus
 from app.schemas.scan import (
     ScanCreate,
     ScanDetailOut,
@@ -30,10 +30,10 @@ async def create_scan(body: ScanCreate, db: AsyncSession = Depends(get_db)):
     if cached_id is not None:
         result = await db.execute(select(ScanResult).where(ScanResult.id == cached_id))
         cached = result.scalar_one_or_none()
-        if cached and cached.scan_status == "completed":
+        if cached and cached.scan_status == ScanStatus.COMPLETED:
             return cached
 
-    scan = ScanResult(image_name=body.image, scan_status="pending")
+    scan = ScanResult(image_name=body.image, scan_status=ScanStatus.PENDING)
     db.add(scan)
     await db.commit()
     await db.refresh(scan)
@@ -79,7 +79,7 @@ async def cancel_scan_endpoint(scan_id: int, db: AsyncSession = Depends(get_db))
     scan = result.scalar_one_or_none()
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
-    if scan.scan_status not in ("pending", "running"):
+    if scan.scan_status not in (ScanStatus.PENDING, ScanStatus.RUNNING):
         raise HTTPException(
             status_code=409,
             detail=f"Cannot cancel a scan with status '{scan.scan_status}'",
@@ -90,7 +90,7 @@ async def cancel_scan_endpoint(scan_id: int, db: AsyncSession = Depends(get_db))
     # For pending scans the process hasn't started yet — update DB directly.
     # For running scans the exception handler in _execute_scan will update it,
     # but we set it here too so the response is immediate.
-    scan.scan_status = "cancelled"
+    scan.scan_status = ScanStatus.CANCELLED
     scan.completed_at = datetime.now(timezone.utc)
 
     await db.commit()
@@ -107,23 +107,29 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
         await db.execute(
             select(func.count())
             .select_from(ScanResult)
-            .where(ScanResult.scan_status == "completed")
+            .where(ScanResult.scan_status == ScanStatus.COMPLETED)
         )
     ).scalar() or 0
     failed = (
         await db.execute(
             select(func.count())
             .select_from(ScanResult)
-            .where(ScanResult.scan_status == "failed")
+            .where(ScanResult.scan_status == ScanStatus.FAILED)
         )
     ).scalar() or 0
 
     result = await db.execute(
-        select(ScanResult).where(ScanResult.scan_status == "completed")
+        select(ScanResult).where(ScanResult.scan_status == ScanStatus.COMPLETED)
     )
     scans = result.scalars().all()
 
-    severity: dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    severity: dict[str, int] = {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "unknown": 0,
+    }
     cve_map: dict[str, dict] = {}
     image_counts: dict[str, int] = {}
 

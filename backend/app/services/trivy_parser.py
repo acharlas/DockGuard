@@ -25,7 +25,7 @@ def parse_vulnerabilities(raw_report: dict | None) -> list[dict]:
 
 def compute_summary(raw_report: dict | None) -> dict:
     """Count vulnerabilities by severity from Trivy JSON report."""
-    summary = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    summary = {"critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0}
     for v in parse_vulnerabilities(raw_report):
         key = v["severity"].lower()
         if key in summary:

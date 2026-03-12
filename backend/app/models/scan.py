@@ -1,8 +1,17 @@
 from datetime import datetime
+from enum import StrEnum
 
 from sqlalchemy import JSON, DateTime, Index, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+
+class ScanStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class Base(DeclarativeBase):

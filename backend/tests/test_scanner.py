@@ -47,7 +47,7 @@ async def test_scan_success_transitions(db_session: AsyncSession, trivy_report):
 
     assert scan.scan_status == "completed"
     assert scan.completed_at is not None
-    assert scan.summary == {"critical": 1, "high": 1, "medium": 1, "low": 1}
+    assert scan.summary == {"critical": 1, "high": 1, "medium": 1, "low": 1, "unknown": 0}
     assert scan.raw_report is not None
 
 

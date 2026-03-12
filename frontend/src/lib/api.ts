@@ -12,6 +12,7 @@ export interface ScanSummary {
   high: number;
   medium: number;
   low: number;
+  unknown: number;
 }
 
 export interface Scan {

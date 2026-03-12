@@ -157,6 +157,7 @@ async def test_stats_empty(client: AsyncClient):
         "high": 0,
         "medium": 0,
         "low": 0,
+        "unknown": 0,
     }
     assert data["top_cves"] == []
     assert data["top_images"] == []

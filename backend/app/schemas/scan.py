@@ -27,6 +27,7 @@ class ScanSummary(BaseModel):
     high: int = 0
     medium: int = 0
     low: int = 0
+    unknown: int = 0
 
 
 class VulnerabilityOut(BaseModel):
