@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { AppShell } from "@/components/AppShell";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -37,8 +38,8 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-screen bg-[var(--dockguard-bg)] text-slate-900 transition-colors duration-200 dark:bg-[var(--dockguard-bg-dark)] dark:text-slate-100">
-        {children}
+      <body className="min-h-screen transition-colors duration-200">
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

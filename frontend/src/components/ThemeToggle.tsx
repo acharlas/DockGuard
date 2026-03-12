@@ -25,10 +25,9 @@ export function ThemeToggle() {
     <button
       onClick={toggle}
       aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-      className="p-2 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+      className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] text-[color:var(--dockguard-muted)] transition-colors hover:text-[color:var(--dockguard-ink)]"
     >
       {dark ? (
-        /* Sun icon */
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="18"
@@ -44,7 +43,6 @@ export function ThemeToggle() {
           <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
         </svg>
       ) : (
-        /* Moon icon */
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="18"

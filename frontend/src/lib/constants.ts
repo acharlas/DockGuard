@@ -6,6 +6,8 @@ export const SCAN_STATUS = {
   CANCELLED: "cancelled",
 } as const;
 
+export const GRAFANA_URL = "http://localhost:3001";
+
 export const STATUS_STYLES: Record<string, string> = {
   pending:
     "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",

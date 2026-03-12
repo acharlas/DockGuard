@@ -3,8 +3,21 @@
 @tailwind utilities;
 
 :root {
-  --dockguard-bg: #eef2f7;
-  --dockguard-bg-dark: #020617;
+  --dockguard-bg: #f4ede2;
+  --dockguard-surface: #ffffff;
+  --dockguard-panel: #fff6ed;
+  --dockguard-border: rgba(194, 89, 30, 0.2);
+  --dockguard-muted: #8b5e3c;
+  --dockguard-ink: #14100d;
+}
+
+.dark {
+  --dockguard-bg: #090604;
+  --dockguard-surface: #110c08;
+  --dockguard-panel: #1a120c;
+  --dockguard-border: rgba(249, 115, 22, 0.18);
+  --dockguard-muted: #d7b392;
+  --dockguard-ink: #fff7ef;
 }
 
 html {
@@ -12,23 +25,29 @@ html {
 }
 
 body {
+  min-height: 100vh;
+  color: var(--dockguard-ink);
   background-image:
-    radial-gradient(circle at top left, rgba(56, 189, 248, 0.14), transparent 28%),
-    radial-gradient(circle at top right, rgba(248, 250, 252, 0.92), transparent 24%),
-    linear-gradient(180deg, #f8fafc 0%, #eef2f7 48%, #e2e8f0 100%);
+    radial-gradient(circle at top left, rgba(249, 115, 22, 0.16), transparent 28%),
+    radial-gradient(circle at 82% 4%, rgba(251, 146, 60, 0.12), transparent 18%),
+    linear-gradient(180deg, #fffaf4 0%, #f7efe5 46%, #efe1d0 100%);
 }
 
 .dark body {
   background-image:
-    radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 24%),
-    radial-gradient(circle at 85% 10%, rgba(14, 165, 233, 0.1), transparent 18%),
-    linear-gradient(180deg, #020617 0%, #0f172a 48%, #111827 100%);
+    radial-gradient(circle at top left, rgba(249, 115, 22, 0.15), transparent 20%),
+    radial-gradient(circle at 86% 10%, rgba(194, 65, 12, 0.16), transparent 18%),
+    linear-gradient(180deg, #050302 0%, #0a0604 46%, #140d09 100%);
 }
 
 code,
 pre,
 .font-mono {
   font-family: var(--font-geist-mono), monospace;
+}
+
+::selection {
+  background: rgba(217, 119, 6, 0.18);
 }
 
 @keyframes shimmer {
@@ -41,22 +60,12 @@ pre,
 }
 
 .skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    #e2e8f0 25%,
-    #f8fafc 50%,
-    #e2e8f0 75%
-  );
+  background: linear-gradient(90deg, #f1dfcc 25%, #fff8ef 50%, #f1dfcc 75%);
   background-size: 800px 100%;
   animation: shimmer 1.4s ease-in-out infinite;
 }
 
 .dark .skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    #0f172a 25%,
-    #1e293b 50%,
-    #0f172a 75%
-  );
+  background: linear-gradient(90deg, #140d09 25%, #26180f 50%, #140d09 75%);
   background-size: 800px 100%;
 }
