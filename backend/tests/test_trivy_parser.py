@@ -1,4 +1,8 @@
-from app.services.trivy_parser import compute_summary, parse_vulnerabilities
+from app.services.trivy_parser import (
+    compute_summary,
+    extract_image_digest,
+    parse_vulnerabilities,
+)
 
 
 def test_parse_vulnerabilities(trivy_report):
@@ -19,7 +23,7 @@ def test_parse_vulnerabilities_empty():
 
 def test_compute_summary(trivy_report):
     summary = compute_summary(trivy_report)
-    assert summary == {"critical": 1, "high": 1, "medium": 1, "low": 1}
+    assert summary == {"critical": 1, "high": 1, "medium": 1, "low": 1, "unknown": 0}
 
 
 def test_compute_summary_empty():
@@ -28,4 +32,16 @@ def test_compute_summary_empty():
         "high": 0,
         "medium": 0,
         "low": 0,
+        "unknown": 0,
     }
+
+
+def test_extract_image_digest(trivy_report):
+    assert (
+        extract_image_digest(trivy_report)
+        == "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    )
+
+
+def test_extract_image_digest_empty():
+    assert extract_image_digest(None) is None

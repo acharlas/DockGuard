@@ -3,10 +3,10 @@
   "ArtifactName": "nginx:latest",
   "ArtifactType": "container_image",
   "Metadata": {
-    "ImageID": "sha256:abc123",
+    "ImageID": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "DiffIDs": [],
     "RepoTags": ["nginx:latest"],
-    "RepoDigests": ["nginx@sha256:def456"]
+    "RepoDigests": ["nginx@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
   },
   "Results": [
     {

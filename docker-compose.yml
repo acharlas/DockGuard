@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: dockguard
       POSTGRES_PASSWORD: dockguard
@@ -13,18 +14,39 @@ services:
       timeout: 3s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+
+  trivy-cache-init:
+    image: busybox:1.37.0
+    restart: "no"
+    user: "0:0"
+    command: >
+      sh -c "mkdir -p /cache/db /cache/fanal &&
+             chown -R 10001:10001 /cache"
+    volumes:
+      - trivycache:/cache
+
   backend:
     build: ./backend
-    ports:
-      - "8000:8000"
+    restart: unless-stopped
     volumes:
-      - trivycache:/root/.cache/trivy
+      - trivycache:/home/dockguard/.cache/trivy
     environment:
       DATABASE_URL: postgresql+asyncpg://dockguard:dockguard@postgres:5432/dockguard
       CORS_ORIGINS: '["http://localhost:3000"]'
+      REDIS_URL: redis://redis:6379/0
+      MAX_PENDING_SCANS: 25
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
+      trivy-cache-init:
+        condition: service_completed_successfully
     command: >
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000"
@@ -34,6 +56,7 @@ services:
       context: ./frontend
       args:
         API_URL: http://backend:8000
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
@@ -41,6 +64,32 @@ services:
     depends_on:
       - backend
 
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    depends_on:
+      - backend
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/grafana.ini:/etc/grafana/grafana.ini
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
 volumes:
   pgdata:
   trivycache:
+  grafana_data:
+  redisdata:

@@ -1,389 +1,199 @@
-# DockGuard — Fiche MVP (5 jours)
+# DockGuard
 
 [![CI/CD](https://github.com/acharlas/DockGuard/actions/workflows/ci.yml/badge.svg)](https://github.com/acharlas/DockGuard/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> Dashboard de scan de sécurité pour images Docker + pipeline DevSecOps complet.
-> L'infrastructure **est** le produit — chaque couche démontre une compétence DevOps/DevSecOps.
-> Principe : **chaque jour se termine avec un système fonctionnel end-to-end.**
-
----
-
-## Stack technique
-
-| Couche | Technologie | Justification |
-|--------|-------------|---------------|
-| Backend | FastAPI (Python 3.12) | Déjà maîtrisé (MyStagram), async natif |
-| Frontend | Next.js 14 + Tailwind + Recharts | Déjà maîtrisé, graphes de vulnérabilités |
-| Scanner | Trivy (CLI) | Standard industrie, gratuit, bien documenté |
-| Base de données | PostgreSQL 16 | Stockage historique des scans |
-| Cache | Redis | Cache résultats récents (ajouté Jour 5 quand justifié) |
-| Monitoring | Prometheus + Grafana | Observabilité (métrique clé pour recruteurs) |
-| IaC | Terraform (config AWS EC2) | Infrastructure as Code — même non déployé |
-| CI/CD | GitHub Actions | Pipeline DevSecOps avec security gates |
-| Container | Docker + Docker Compose | Orchestration locale complète |
+**DockGuard** is a full-stack Docker image security scanning dashboard that wraps [Trivy](https://trivy.dev) behind a production-grade DevSecOps pipeline. Scan any Docker image, track vulnerability history, and monitor scan metrics in real time — all from a single `docker compose up --build`. The infrastructure itself is the portfolio artifact: every layer (async API, CI/CD pipeline, containerisation, Prometheus/Grafana, Terraform IaC) demonstrates a specific DevOps/DevSecOps competency.
 
 ---
 
-## Architecture cible
+## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      GitHub Actions                         │
-│  lint → test → build → trivy scan → push GHCR → deploy     │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    Browser["Browser\n:3000"] -->|HTTP| Frontend["Next.js 14\nFrontend"]
+    Frontend -->|route handler proxy| Backend["FastAPI\nBackend :8000"]
+    Backend -->|asyncpg| DB[(PostgreSQL 16)]
+    Backend -->|subprocess| Trivy["Trivy CLI\nasyncio.Semaphore(3)"]
+    Backend -->|SETEX 10min| Redis[(Redis 7)]
+    Backend -->|/metrics| Prometheus["Prometheus\n:9090"]
+    Prometheus --> Grafana["Grafana\n:3001"]
 
-┌──────────┐     ┌──────────────┐     ┌───────────┐
-│ Next.js  │────▶│   FastAPI    │────▶│ PostgreSQL│
-│ Frontend │     │   Backend    │     └───────────┘
-└──────────┘     │              │
-                 │  ┌────────┐  │     ┌───────────┐
-                 │  │ Trivy  │  │────▶│   Redis   │
-                 │  │  CLI   │  │     └───────────┘
-                 │  └────────┘  │
-                 └──────┬───────┘
-                        │ /metrics
-                 ┌──────▼───────┐
-                 │  Prometheus  │────▶ Grafana (:3001)
-                 └──────────────┘
+    subgraph CI/CD ["GitHub Actions CI/CD"]
+        Lint["lint"] --> Test["test"] --> Build["build"] --> Sec["trivy scan\nSARIF → GitHub Security"] --> Push["push GHCR\n(main only)"]
+    end
+
+    subgraph IaC ["Terraform (AWS)"]
+        EC2["EC2 + RDS\nuser_data → docker compose up"]
+    end
 ```
 
 ---
 
-## JOUR 1 — Backend API + Intégration Trivy (le noyau)
+## Stack
 
-### Objectifs
-- Backend FastAPI fonctionnel en local (pas de Docker encore)
-- Trivy intégré avec scan asynchrone end-to-end
-- Tests écrits en même temps que le code
-- Sanitization des inputs dès le premier jour
-
-### Tâches
-
-**1.1 — Initialisation repo + structure**
-- [ ] Créer le repo `DockGuard` sur GitHub
-- [ ] Structure de dossiers :
-```
-DockGuard/
-├── backend/
-│   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main.py
-│   │   ├── config.py
-│   │   ├── models/
-│   │   │   ├── __init__.py
-│   │   │   └── scan.py
-│   │   ├── schemas/
-│   │   │   ├── __init__.py
-│   │   │   └── scan.py
-│   │   ├── api/
-│   │   │   ├── __init__.py
-│   │   │   └── routes/
-│   │   │       ├── __init__.py
-│   │   │       ├── scans.py
-│   │   │       └── health.py
-│   │   ├── services/
-│   │   │   ├── __init__.py
-│   │   │   └── scanner.py
-│   │   └── db/
-│   │       ├── __init__.py
-│   │       └── session.py
-│   ├── tests/
-│   │   └── fixtures/
-│   │       └── trivy_nginx.json   # Vrai output Trivy sauvegardé
-│   ├── Dockerfile
-│   ├── pyproject.toml
-│   └── alembic/
-├── .gitignore
-├── .env.example
-└── LICENSE (MIT)
-```
-- [ ] `.gitignore`, `.env.example`, `LICENSE` (MIT)
-
-**1.2 — Modèle de données (SQLAlchemy + Alembic)**
-```python
-# Un seul modèle. Pas de table Vulnerability — le JSON Trivy dans raw_report
-# contient déjà tout. Utiliser les opérateurs JSON de PostgreSQL pour requêter.
-# Dénormaliser seulement si on prouve que c'est lent.
-class ScanResult(Base):
-    __tablename__ = "scan_results"
-
-    id: int (PK)
-    image_name: str          # ex: "nginx:latest"
-    image_digest: str | None # sha256 si disponible
-    scan_status: str         # "pending", "running", "completed", "failed"
-    started_at: datetime
-    completed_at: datetime | None
-    summary: JSON            # {"critical": 2, "high": 5, "medium": 12, "low": 8}
-    raw_report: JSON         # rapport Trivy complet (vulnérabilités requêtées via JSON)
-    created_at: datetime
-```
-- [ ] Alembic init + première migration
-- [ ] Index GIN sur `raw_report` : `CREATE INDEX idx_raw_report ON scan_results USING GIN (raw_report)` — coût du choix JSON, à faire maintenant pas quand c'est lent
-
-**1.3 — Endpoints API v1**
-- [ ] `POST /api/v1/scans` — Lancer un scan (accepte `{"image": "nginx:latest"}`, retourne 202)
-- [ ] `GET /api/v1/scans` — Liste paginée des scans (filtres: status, date)
-- [ ] `GET /api/v1/scans/{id}` — Détail d'un scan + vulnérabilités extraites du `raw_report`
-- [ ] `GET /api/v1/health` — Health check (DB ping)
-- [ ] Input sanitization sur le nom d'image (regex whitelist — risque réel d'injection de commandes)
-- [ ] CORS configuré
-
-**1.4 — Service scanner + exécution asynchrone**
-- [ ] Installer Trivy localement
-- [ ] `ScannerService` : wrapper Python autour de `trivy image --format json` via `asyncio.create_subprocess_exec` (jamais `shell=True`)
-- [ ] `parse_vulnerabilities(raw_report) -> list[dict]` : une seule fonction qui extrait les vulnérabilités du JSON Trivy — réutilisée par GET `/scans/{id}`, stats, et le frontend
-- [ ] Parsing du JSON Trivy → remplir `summary` + stocker `raw_report`
-- [ ] Background task : `pending` → `running` → `completed`/`failed`
-- [ ] Concurrence limitée : `asyncio.Semaphore(3)` — une ligne, zéro infra
-- [ ] Timeout : 5 minutes max par scan
-- [ ] Gestion des erreurs (image inexistante, timeout, crash Trivy)
-
-**1.5 — Tests (écrits en même temps, pas après)**
-- [ ] Test POST retourne 202 avec image valide
-- [ ] Test POST rejette les noms d'images malveillants (`;rm -rf /`, `$(whoami)`, etc.)
-- [ ] Test GET retourne le détail du scan avec la bonne structure
-- [ ] Test parsing JSON Trivy avec fixture (`tests/fixtures/trivy_nginx.json`)
-- [ ] Test des transitions de status
-
-### Critère de validation Jour 1
-> `uvicorn` tourne en local, `POST /api/v1/scans {"image": "nginx:latest"}` déclenche un vrai scan Trivy, `GET /api/v1/scans/{id}` retourne les vulnérabilités parsées. Tests passent.
+| Layer | Technology |
+|-------|-----------|
+| Backend | FastAPI (Python 3.12), SQLAlchemy async, Alembic |
+| Frontend | Next.js 14 App Router, TypeScript, Tailwind CSS, Recharts |
+| Scanner | Trivy CLI (via `asyncio.create_subprocess_exec`, never `shell=True`) |
+| Database | PostgreSQL 16 (vulnerabilities stored as JSON in `raw_report`) |
+| Cache | Redis 7 (10-min TTL for digest-pinned image reuse, graceful degradation) |
+| Monitoring | Prometheus + Grafana (4 custom metrics) |
+| IaC | Terraform — flat `main.tf`, EC2 + RDS, `templatefile()` user_data |
+| CI/CD | GitHub Actions — lint → test → build → security scan → push GHCR |
 
 ---
 
-## JOUR 2 — Frontend + Docker Compose (rendre visible)
+## Quick Start
 
-### Objectifs
-- Dashboard Next.js fonctionnel
-- Stack complète containerisée
-- On peut scanner une image depuis le navigateur
-
-### Tâches
-
-**2.1 — Dashboard Next.js — une page qui marche**
-- [ ] Next.js 14 App Router + TypeScript + Tailwind
-- [ ] **Une page** (`app/page.tsx`) avec trois éléments :
-  1. Barre de recherche + bouton scan (POST vers le backend)
-  2. Tableau de résultats : sévérité, CVE ID, package, version installée, version fix
-  3. Donut chart (Recharts) : répartition par sévérité
-- [ ] Polling : tant que le scan est `pending`/`running`, interroger l'API toutes les 2s
-- [ ] Extraire des composants uniquement quand la duplication apparaît, pas avant
-
-**2.2 — Docker Compose — stack complète**
-- [ ] `docker-compose.yml` : backend + postgres + frontend
-- [ ] `docker-compose.dev.yml` : hot reload backend + frontend, ports exposés
-- [ ] Backend Dockerfile multi-stage (builder + runtime), Trivy installé dans le stage runtime
-- [ ] Frontend Dockerfile multi-stage (build + standalone Next.js)
-- [ ] Volume pour persistence PostgreSQL
-- [ ] `.env.example` avec toutes les variables documentées
-
-**2.3 — Tests**
-- [ ] Frontend : ScanForm soumet correctement, le tableau rend les données de vulnérabilité
-- [ ] Docker : `docker compose up --build` fonctionne from scratch (test d'intégration en soi)
-
-### Critère de validation Jour 2
-> `docker compose up --build` démarre tout. Ouvrir le navigateur, taper `nginx:latest`, cliquer scan, voir les vulnérabilités apparaître dans le tableau et le graphe.
-
----
-
-## JOUR 3 — Pipeline CI/CD + Stats (prouver que ça ship)
-
-### Objectifs
-- Pipeline GitHub Actions complet en un seul workflow
-- Endpoint stats enrichi
-- Pages d'historique et de détail
-
-### Tâches
-
-**3.1 — GitHub Actions — un workflow, bien fait**
-- [ ] **Un seul fichier** : `.github/workflows/ci.yml`
-```yaml
-name: DockGuard CI/CD
-
-on:
-  push:
-    branches: [main, dev]
-  pull_request:
-    branches: [main]
-
-jobs:
-  lint:
-    # Ruff (Python) + ESLint (TS) — en parallèle
-
-  test:
-    # pytest --cov + npm test — en parallèle
-
-  build:
-    needs: [lint, test]
-    # Build images Docker backend + frontend
-    # Tag avec SHA du commit
-
-  security-scan:
-    needs: [build]
-    # Trivy scan des images buildées
-    # Upload SARIF → GitHub Security tab
-    # FAIL si vulnérabilité CRITICAL
-
-  push-registry:
-    needs: [security-scan]
-    # Push sur GHCR (GitHub Container Registry)
-    # Tag: latest + SHA
-    # Seulement sur main
+```bash
+git clone https://github.com/acharlas/DockGuard.git
+cd DockGuard
+docker compose up --build
 ```
-- [ ] Badge CI status dans le README
 
-**3.2 — Endpoint stats + pages frontend**
-- [ ] `GET /api/v1/stats` : total scans, répartition sévérité, top 10 CVEs, top 5 images (requêtes SQL sur `raw_report` JSON)
-- [ ] Page historique des scans (`app/scans/page.tsx`) : tableau des scans passés avec badges de status, clic vers le détail
-- [ ] Page détail d'un scan (`app/scans/[id]/page.tsx`) : tableau complet des vulnérabilités avec filtre par sévérité + tri
-- [ ] Cards de stats sur la page d'accueil du dashboard
+| Service | URL |
+|---------|-----|
+| Dashboard | http://localhost:3000 |
+| Grafana | http://localhost:3001 (admin / admin) |
+| Prometheus | http://localhost:9090 |
 
-**3.3 — Tests**
-- [ ] Test endpoint stats retourne les bonnes agrégations
-- [ ] Vérifier que le pipeline CI tourne au vert sur un push vers `dev`
+> **First run:** The backend pre-warms the Trivy vulnerability database on startup (~50 MB download, ~1 min). Subsequent starts use the cached DB volume and are instant.
+>
+> **Cache permissions:** The Compose stack now runs a one-shot `trivy-cache-init` service that fixes ownership on the named Trivy cache volume before the backend starts. Rebuild the backend image after pulling these changes.
+>
+> **API access:** The default stack exposes only the frontend. Browser API calls go through the Next.js route-handler proxy. Use `docker compose -f docker-compose.dev.yml up` if you want direct access to Swagger at `http://localhost:8000/docs`.
 
-### Critère de validation Jour 3
-> Push sur GitHub → pipeline complet se lance → tout vert → badge dans le README. La page stats affiche les données agrégées sur plusieurs scans.
+### Populate demo data
 
----
-
-## JOUR 4 — Monitoring + Terraform (les preuves DevOps)
-
-### Objectifs
-- Prometheus + Grafana fonctionnels avec métriques custom
-- Configuration Terraform propre et validée
-- Prouver les compétences monitoring et IaC
-
-### Tâches
-
-**4.1 — Métriques Prometheus côté backend**
-- [ ] Intégrer `prometheus_client`
-- [ ] 4 métriques custom :
-  - `dockguard_scans_total` (counter, labels: status)
-  - `dockguard_scan_duration_seconds` (histogram)
-  - `dockguard_vulnerabilities_found` (counter, labels: severity)
-  - `dockguard_active_scans` (gauge)
-- [ ] Endpoint `GET /metrics` au format Prometheus
-
-**4.2 — Config Prometheus + Grafana**
+```bash
+./scripts/seed.sh
 ```
-monitoring/
-├── prometheus/
-│   └── prometheus.yml          # scrape backend /metrics toutes les 15s
-└── grafana/
-    ├── provisioning/
-    │   ├── datasources/
-    │   │   └── prometheus.yml
-    │   └── dashboards/
-    │       ├── dashboard.yml
-    │       └── dockguard.json  # Dashboard pré-configuré
-    └── grafana.ini
+
+Launches scans for `nginx:latest`, `node:18-alpine`, `python:3.12-slim`, `postgres:16-alpine`, and `node:10` (deliberately vulnerable), then polls until all complete. Grafana dashboards and the scan history page will be populated with realistic data.
+
+---
+
+## Screenshots
+
+> Run `./scripts/seed.sh` first to populate data.
+
+| Dashboard | Scan Detail | Grafana |
+|-----------|------------|---------|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Scan Detail](docs/screenshots/scan-detail.png) | ![Grafana](docs/screenshots/grafana.png) |
+
+---
+
+## DevSecOps Pipeline
+
 ```
-- [ ] Ajouter Prometheus + Grafana au Docker Compose (Grafana sur :3001)
-- [ ] Dashboard Grafana provisionné : 4 panels correspondant aux 4 métriques
-
-**4.3 — Terraform — plat, honnête, simple**
+push → GitHub Actions
+         │
+         ├─ lint     ruff (Python) + ESLint (TypeScript) in parallel
+         │
+         ├─ test     pytest --cov-fail-under=70 + npm test in parallel
+         │
+         ├─ build    docker build backend + frontend, tag with commit SHA
+         │
+         ├─ security-scan
+         │           trivy image --severity CRITICAL --exit-code 1
+         │           Upload SARIF → GitHub Security tab
+         │           Pipeline fails on any CRITICAL vulnerability
+         │
+         └─ push-registry  (main branch only)
+                     docker push ghcr.io/acharlas/dockguard-backend:latest
+                     docker push ghcr.io/acharlas/dockguard-frontend:latest
 ```
-terraform/
-├── main.tf              # VPC + subnet + security group + EC2 + RDS — tout ici
-├── variables.tf         # Toutes les variables avec descriptions
-├── outputs.tf           # IP publique, endpoint DB
-├── provider.tf          # Provider AWS
-└── terraform.tfvars.example
+
+The security gate (`--exit-code 1` on CRITICAL) means broken images never reach the registry. SARIF output makes vulnerabilities visible directly in the GitHub Security tab without any external tooling.
+
+---
+
+## API
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/scans` | Initiate scan (`202` for new/in-flight work, `200` for digest-cached completed result, may return `429` when the queue is full) |
+| `GET` | `/api/v1/scans` | Paginated scan history (filters: `status`, `date_from`, `date_to`) |
+| `GET` | `/api/v1/scans/{id}` | Scan detail + parsed vulnerabilities |
+| `GET` | `/api/v1/stats` | Totals, severity breakdown, top 10 CVEs, top 5 images |
+| `GET` | `/api/v1/health` | Health check (DB ping) |
+| `GET` | `/metrics` | Prometheus metrics |
+
+Direct backend docs are available in the dev stack at `http://localhost:8000/docs` and `http://localhost:8000/redoc`.
+
+The frontend proxies browser API calls through a Next.js route handler. For this MVP, abuse control is intentionally simple: duplicate suppression, queue caps, and bounded scan concurrency. There is no per-client rate limiting because the app does not have a trustworthy client-identity boundary.
+
+If the backend restarts, any `pending` or `running` scans are reconciled to `failed` with `failure_reason = "worker_restarted"`. The app does not try to fake durable in-process jobs.
+
+### Async scan flow
+
 ```
-- [ ] Pas de modules — un seul `main.tf` avec des commentaires clairs (les modules servent à gérer la complexité à l'échelle, pas pour un VPC + un EC2 + un RDS)
-- [ ] EC2 avec `user_data` qui lance `docker compose up` depuis les images GHCR
-- [ ] RDS PostgreSQL
-- [ ] Security group : ports 80, 443, 22 uniquement
-- [ ] `terraform validate` passe
-
-### Critère de validation Jour 4
-> `docker compose up` → Grafana sur :3001 affiche des données réelles après quelques scans. `terraform validate` passe.
-
----
-
-## JOUR 5 — Polish + README + Démo (shipper)
-
-### Objectifs
-- App prête pour le portfolio
-- README professionnel avec screenshots
-- Données de démo convaincantes
-
-### Tâches
-
-**5.1 — UX polish**
-- [ ] Dark mode toggle (classes Tailwind `dark:` — 30 minutes max)
-- [ ] Skeleton loaders pendant les scans
-- [ ] Responsive check
-- [ ] États d'erreur : image introuvable, timeout, backend inaccessible
-
-**5.2 — Redis — il gagne sa place maintenant**
-- [ ] Ajouter Redis au Docker Compose
-- [ ] Cache : ne pas re-scanner la même image:tag pendant 10 minutes (cas d'usage réel)
-- [ ] Test du comportement de cache
-
-**5.3 — Script de seed / démo**
-- [ ] Script qui lance 5-6 scans sur des images variées :
-  - `nginx:latest`, `node:18`, `python:3.12-slim`, `postgres:16`, une vieille image vulnérable (ex: `node:10`)
-- [ ] Les dashboards Grafana et frontend sont peuplés avec des données réalistes
-
-**5.4 — README professionnel**
-- [ ] Badges : CI status, license
-- [ ] Description en un paragraphe
-- [ ] Diagramme d'architecture (Mermaid)
-- [ ] Quick Start : `git clone && docker compose up --build`
-- [ ] Screenshots : dashboard, détail scan, Grafana (après exécution du seed script)
-- [ ] Section "DevSecOps Pipeline" : explication du flow CI/CD
-
-**5.5 — Checklist finale**
-- [ ] `docker compose up --build` fonctionne from scratch
-- [ ] Tous les tests passent
-- [ ] Pipeline CI/CD complet et vert
-- [ ] `terraform validate` passe
-- [ ] Aucun secret dans le repo
-- [ ] `.env.example` complet et documenté
-- [ ] License MIT
-- [ ] README impeccable
-
-### Critère de validation Jour 5
-> Un inconnu clone le repo, lance `docker compose up --build`, ouvre le navigateur, et voit un dashboard de scan de sécurité fonctionnel avec des données pré-remplies. Le README explique tout.
+POST /scans → existing pending/running scan returned when duplicate work is already in flight
+          ↓
+          202 (scan_status: "pending")  |  200 (completed digest cache hit)
+                    ↓ asyncio background task
+              scan_status: "running"  (Trivy subprocess starts)
+                    ↓
+              scan_status: "completed" | "failed" | "cancelled"
+                    ↓
+              Redis cache set for immutable digest  →  digest-pinned requests can reuse a recent completed result
+```
 
 ---
 
-## Résumé : ce que le recruteur voit
+## Custom Prometheus Metrics
 
-| Compétence | Preuve dans le projet |
-|------------|----------------------|
-| Backend / API | FastAPI, endpoints REST, async, PostgreSQL, JSON queries |
-| Frontend | Next.js, Recharts, responsive, dark mode |
-| Docker | Multi-stage builds, Compose, orchestration |
-| CI/CD | GitHub Actions pipeline complet avec security gates |
-| DevSecOps | Trivy, SARIF, security gates, input sanitization |
-| Monitoring | Prometheus métriques custom, Grafana dashboard provisionné |
-| IaC | Terraform validé, commenté, prêt à déployer |
-| Tests | pytest + Jest, écrits avec le code, coverage > 70% |
-| Documentation | README pro, architecture Mermaid, Swagger |
+| Metric | Type | Labels |
+|--------|------|--------|
+| `dockguard_scans_total` | Counter | `status` |
+| `dockguard_scan_duration_seconds` | Histogram | — |
+| `dockguard_vulnerabilities_found` | Counter | `severity` |
+| `dockguard_active_scans` | Gauge | — |
 
 ---
 
-## Décisions architecturales clés
+## Development
 
-| Décision | Choix | Justification |
-|----------|-------|---------------|
-| Pas de table `Vulnerability` | Stocker dans `raw_report` JSON, requêter via PostgreSQL JSON | Pas de preuve que c'est lent, dénormaliser si besoin prouvé |
-| Pas de Redis pour rate limiting | `asyncio.Semaphore(3)` | Une ligne vs un service entier, un seul backend |
-| Redis ajouté Jour 5 | Cache résultats récents (10 min) | Cas d'usage réel justifié |
-| Un seul workflow CI | Tout dans `ci.yml` | Un pipeline vert > trois workflows à moitié configurés |
-| Terraform sans modules | Un `main.tf` plat avec commentaires | Les modules servent à l'échelle, pas pour 3 ressources |
-| Tests écrits chaque jour | Pas de "jour tests" séparé | Code non testé de 4 jours = code oublié |
-| Docker Compose au Jour 2 | D'abord coder en local | Debug via `uvicorn --reload` est 10x plus rapide |
+```bash
+# Dev stack with hot reload
+docker compose -f docker-compose.dev.yml up
+
+# Backend tests + coverage
+docker compose -f docker-compose.dev.yml exec backend pytest --cov --cov-report=term
+
+# Frontend tests
+docker compose -f docker-compose.dev.yml exec frontend npm test
+
+# Lint
+docker compose -f docker-compose.dev.yml exec backend ruff check app/ tests/
+docker compose -f docker-compose.dev.yml exec frontend npm run lint
+
+# Terraform validate
+cd terraform && terraform init && terraform validate
+```
 
 ---
 
-## Notes pour travailler avec Claude
+## Key Design Decisions
 
-À chaque début de session de dev, donne-moi :
-1. Le jour en cours (ex: "Jour 3")
-2. Ce que tu as déjà terminé
-3. Les blocages éventuels
+| Decision | Rationale |
+|----------|-----------|
+| No `Vulnerability` table | Trivy JSON stored in `raw_report`, queried via PostgreSQL JSON operators. Denormalise only when slowness is proven, not assumed. |
+| `asyncio.Semaphore(3)` not a queue service | One line limits concurrency to 3 concurrent Trivy processes — zero extra infrastructure for a single-worker backend. |
+| Redis added at Day 5 | Not Day 1. Added when the use case was real (reuse digest-pinned scans safely), not speculatively. |
+| Flat Terraform (`main.tf`) | Modules add abstraction cost. For one VPC + one EC2 + one RDS, a flat file with clear comments is easier to read and review. |
+| `templatefile()` for `user_data` | Separates HCL interpolation from bash, avoiding nested heredoc parsing issues and making the bootstrap script testable independently. |
+| Per-scan Trivy cache dir | Concurrent scans get isolated `fanal` (image layer) cache dirs with a symlink to the shared pre-warmed DB — eliminates file lock contention without sacrificing DB caching. |
 
-On avancera tâche par tâche.
+## Deployment Notes
+
+- The sample Terraform deployment is HTTP-only on port `80`. It does not terminate TLS.
+- Restrict `ssh_allowed_cidr` explicitly in `terraform.tfvars`; there is no world-open SSH default anymore.
+
+---
+
+## License
+
+[MIT](LICENSE)

@@ -1,0 +1,53 @@
+#!/bin/bash
+set -euo pipefail
+
+# Install Docker
+dnf install -y docker
+systemctl enable --now docker
+
+# Install Docker Compose v2 plugin
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+# Write docker-compose.yml for production
+mkdir -p /opt/dockguard
+cat > /opt/dockguard/docker-compose.yml <<'COMPOSE'
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+
+  backend:
+    image: ${backend_image}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${database_url}
+      CORS_ORIGINS: '${cors_origins}'
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - redis
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  frontend:
+    image: ${frontend_image}
+    restart: unless-stopped
+    ports:
+      - "80:3000"
+    environment:
+      API_URL: http://backend:8000
+    depends_on:
+      - backend
+
+volumes:
+  redisdata:
+COMPOSE
+
+cd /opt/dockguard
+docker compose pull
+docker compose up -d

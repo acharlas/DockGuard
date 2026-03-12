@@ -1,12 +1,14 @@
 import asyncio
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer, load_only
 
+from app.config import settings
 from app.db.session import get_db
-from app.models.scan import ScanResult
+from app.models.scan import ScanResult, ScanStatus
 from app.schemas.scan import (
     ScanCreate,
     ScanDetailOut,
@@ -16,19 +18,114 @@ from app.schemas.scan import (
     TopCve,
     TopImage,
 )
+from app.services.cache import extract_requested_digest, get_cached_scan_id_for_digest
 from app.services.scanner import cancel_scan, run_scan
 from app.services.trivy_parser import parse_vulnerabilities
+from app.tasks import create_background_task
 
 router = APIRouter()
+# Single-process admission control keeps duplicate suppression and queue checks honest
+# for the MVP deployment model (one backend instance / one worker process).
+_scan_admission_lock = asyncio.Lock()
 
 
-@router.post("/scans", response_model=ScanOut, status_code=202)
-async def create_scan(body: ScanCreate, db: AsyncSession = Depends(get_db)):
-    scan = ScanResult(image_name=body.image, scan_status="pending")
-    db.add(scan)
-    await db.commit()
-    await db.refresh(scan)
-    asyncio.create_task(run_scan(scan.id))
+def _summary_value_expression(severity: str):
+    return func.coalesce(ScanResult.summary[severity].as_integer(), 0)
+
+
+async def _cancel_pending_if_still_pending(
+    db: AsyncSession,
+    scan_id: int,
+    now: datetime,
+) -> bool:
+    result = await db.execute(
+        update(ScanResult)
+        .where(ScanResult.id == scan_id)
+        .where(ScanResult.scan_status == ScanStatus.PENDING)
+        .values(
+            cancel_requested_at=now,
+            scan_status=ScanStatus.CANCELLED,
+            completed_at=now,
+            failure_reason="cancelled",
+        )
+    )
+    return (result.rowcount or 0) == 1
+
+
+async def _mark_cancel_requested_if_running(
+    db: AsyncSession,
+    scan_id: int,
+    now: datetime,
+) -> bool:
+    result = await db.execute(
+        update(ScanResult)
+        .where(ScanResult.id == scan_id)
+        .where(ScanResult.scan_status == ScanStatus.RUNNING)
+        .where(ScanResult.cancel_requested_at.is_(None))
+        .values(cancel_requested_at=now)
+    )
+    return (result.rowcount or 0) == 1
+
+
+@router.post(
+    "/scans",
+    response_model=ScanOut,
+    status_code=202,
+    responses={200: {"model": ScanOut}},
+)
+async def create_scan(
+    body: ScanCreate,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    async with _scan_admission_lock:
+        active_result = await db.execute(
+            select(ScanResult)
+            .where(ScanResult.image_name == body.image)
+            .where(ScanResult.scan_status.in_((ScanStatus.PENDING, ScanStatus.RUNNING)))
+            .order_by(ScanResult.created_at.desc())
+        )
+        active_scan = active_result.scalars().first()
+        if active_scan:
+            return active_scan
+
+        requested_digest = extract_requested_digest(body.image)
+        cached_id = await get_cached_scan_id_for_digest(requested_digest)
+        if cached_id is not None:
+            result = await db.execute(
+                select(ScanResult).where(ScanResult.id == cached_id)
+            )
+            cached = result.scalar_one_or_none()
+            if (
+                cached
+                and cached.scan_status == ScanStatus.COMPLETED
+                and cached.image_digest == requested_digest
+            ):
+                response.status_code = status.HTTP_200_OK
+                return cached
+
+        pending_count = (
+            await db.execute(
+                select(func.count())
+                .select_from(ScanResult)
+                .where(ScanResult.scan_status == ScanStatus.PENDING)
+            )
+        ).scalar() or 0
+        if pending_count >= settings.max_pending_scans:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Scan queue is full. Try again later.",
+            )
+
+        scan = ScanResult(
+            image_name=body.image,
+            scan_status=ScanStatus.PENDING,
+        )
+        db.add(scan)
+        await db.commit()
+        await db.refresh(scan)
+
+    create_background_task(run_scan(scan.id))
     return scan
 
 
@@ -36,12 +133,16 @@ async def create_scan(body: ScanCreate, db: AsyncSession = Depends(get_db)):
 async def list_scans(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
-    status: str | None = None,
+    status: ScanStatus | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(ScanResult).order_by(ScanResult.created_at.desc())
+    query = (
+        select(ScanResult)
+        .options(defer(ScanResult.raw_report))
+        .order_by(ScanResult.created_at.desc())
+    )
     count_query = select(func.count()).select_from(ScanResult)
 
     if status:
@@ -70,22 +171,38 @@ async def cancel_scan_endpoint(scan_id: int, db: AsyncSession = Depends(get_db))
     scan = result.scalar_one_or_none()
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
-    if scan.scan_status not in ("pending", "running"):
+    if scan.scan_status not in (ScanStatus.PENDING, ScanStatus.RUNNING):
         raise HTTPException(
             status_code=409,
             detail=f"Cannot cancel a scan with status '{scan.scan_status}'",
         )
 
-    await cancel_scan(scan_id)
+    now = datetime.now(timezone.utc)
+    should_kill_running_process = scan.scan_status == ScanStatus.RUNNING
+    if scan.scan_status == ScanStatus.PENDING:
+        if await _cancel_pending_if_still_pending(db, scan_id, now):
+            await db.commit()
+        else:
+            should_kill_running_process = await _mark_cancel_requested_if_running(
+                db, scan_id, now
+            )
+            await db.commit()
+    else:
+        if await _mark_cancel_requested_if_running(db, scan_id, now):
+            should_kill_running_process = True
+        await db.commit()
 
-    # For pending scans the process hasn't started yet — update DB directly.
-    # For running scans the exception handler in _execute_scan will update it,
-    # but we set it here too so the response is immediate.
-    scan.scan_status = "cancelled"
-    scan.completed_at = datetime.now(timezone.utc)
+    if should_kill_running_process:
+        await cancel_scan(scan_id)
 
-    await db.commit()
     await db.refresh(scan)
+    if scan.scan_status == ScanStatus.CANCELLED:
+        return scan
+    if scan.scan_status not in (ScanStatus.PENDING, ScanStatus.RUNNING):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot cancel a scan with status '{scan.scan_status}'",
+        )
     return scan
 
 
@@ -98,50 +215,78 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
         await db.execute(
             select(func.count())
             .select_from(ScanResult)
-            .where(ScanResult.scan_status == "completed")
+            .where(ScanResult.scan_status == ScanStatus.COMPLETED)
         )
     ).scalar() or 0
     failed = (
         await db.execute(
             select(func.count())
             .select_from(ScanResult)
-            .where(ScanResult.scan_status == "failed")
+            .where(ScanResult.scan_status == ScanStatus.FAILED)
         )
     ).scalar() or 0
 
-    result = await db.execute(
-        select(ScanResult).where(ScanResult.scan_status == "completed")
+    severity_result = await db.execute(
+        select(
+            func.coalesce(func.sum(_summary_value_expression("critical")), 0),
+            func.coalesce(func.sum(_summary_value_expression("high")), 0),
+            func.coalesce(func.sum(_summary_value_expression("medium")), 0),
+            func.coalesce(func.sum(_summary_value_expression("low")), 0),
+            func.coalesce(func.sum(_summary_value_expression("unknown")), 0),
+        ).where(ScanResult.scan_status == ScanStatus.COMPLETED)
     )
-    scans = result.scalars().all()
+    critical, high, medium, low, unknown = severity_result.one()
 
-    severity: dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    top_image_result = await db.execute(
+        select(
+            ScanResult.image_name,
+            func.count(ScanResult.id).label("scan_count"),
+        )
+        .where(ScanResult.scan_status == ScanStatus.COMPLETED)
+        .group_by(ScanResult.image_name)
+        .order_by(func.count(ScanResult.id).desc(), ScanResult.image_name.asc())
+        .limit(5)
+    )
+    top_images = [
+        TopImage(image_name=image_name, scan_count=scan_count)
+        for image_name, scan_count in top_image_result.all()
+    ]
+
+    cve_result = await db.execute(
+        select(ScanResult)
+        .options(load_only(ScanResult.raw_report))
+        .where(ScanResult.scan_status == ScanStatus.COMPLETED)
+        .where(ScanResult.raw_report.is_not(None))
+        .order_by(ScanResult.completed_at.desc())
+        .limit(settings.stats_recent_scan_limit)
+    )
+    cve_scans = cve_result.scalars().all()
+
     cve_map: dict[str, dict] = {}
-    image_counts: dict[str, int] = {}
-
-    for scan in scans:
-        if scan.summary:
-            for key in severity:
-                severity[key] += scan.summary.get(key, 0)
-        if scan.raw_report:
-            for vuln in parse_vulnerabilities(scan.raw_report):
-                vid = vuln["vuln_id"]
-                if vid not in cve_map:
-                    cve_map[vid] = {
-                        "count": 0,
-                        "severity": vuln["severity"],
-                        "title": vuln["title"],
-                    }
-                cve_map[vid]["count"] += 1
-        image_counts[scan.image_name] = image_counts.get(scan.image_name, 0) + 1
+    for scan in cve_scans:
+        for vuln in parse_vulnerabilities(scan.raw_report):
+            vid = vuln["vuln_id"]
+            if vid not in cve_map:
+                cve_map[vid] = {
+                    "count": 0,
+                    "severity": vuln["severity"],
+                    "title": vuln["title"],
+                }
+            cve_map[vid]["count"] += 1
 
     top_cves = sorted(cve_map.items(), key=lambda x: x[1]["count"], reverse=True)[:10]
-    top_images = sorted(image_counts.items(), key=lambda x: x[1], reverse=True)[:5]
 
     return StatsOut(
         total_scans=total,
         completed_scans=completed,
         failed_scans=failed,
-        severity_breakdown=severity,
+        severity_breakdown={
+            "critical": critical,
+            "high": high,
+            "medium": medium,
+            "low": low,
+            "unknown": unknown,
+        },
         top_cves=[
             TopCve(
                 vuln_id=k,
@@ -151,7 +296,7 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
             )
             for k, v in top_cves
         ],
-        top_images=[TopImage(image_name=k, scan_count=v) for k, v in top_images],
+        top_images=top_images,
     )
 
 

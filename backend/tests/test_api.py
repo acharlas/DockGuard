@@ -1,10 +1,18 @@
+import asyncio
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.db.session import get_db
+from app.main import app
 from app.models.scan import ScanResult
+
+DIGEST = "sha256:" + ("b" * 64)
 
 
 @pytest.mark.asyncio
@@ -14,13 +22,123 @@ async def test_create_scan_returns_202(client: AsyncClient):
     data = resp.json()
     assert data["image_name"] == "nginx:latest"
     assert data["scan_status"] == "pending"
+    assert data["started_at"] is None
     assert "id" in data
+
+
+@pytest.mark.asyncio
+async def test_create_scan_returns_existing_active_scan(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    existing = ScanResult(image_name="nginx:latest", scan_status="pending")
+    db_session.add(existing)
+    await db_session.commit()
+    await db_session.refresh(existing)
+
+    resp = await client.post("/api/v1/scans", json={"image": "nginx:latest"})
+    assert resp.status_code == 202
+    assert resp.json()["id"] == existing.id
+
+
+@pytest.mark.asyncio
+async def test_create_scan_returns_200_for_completed_cached_digest_hit(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    cached = ScanResult(
+        image_name=f"nginx@{DIGEST}",
+        image_digest=DIGEST,
+        scan_status="completed",
+    )
+    db_session.add(cached)
+    await db_session.commit()
+    await db_session.refresh(cached)
+
+    with patch(
+        "app.api.routes.scans.get_cached_scan_id_for_digest",
+        AsyncMock(return_value=cached.id),
+    ):
+        resp = await client.post("/api/v1/scans", json={"image": f"nginx@{DIGEST}"})
+
+    assert resp.status_code == 200
+    assert resp.json()["id"] == cached.id
+
+    total = (
+        await db_session.execute(select(func.count()).select_from(ScanResult))
+    ).scalar_one()
+    assert total == 1
+
+
+@pytest.mark.asyncio
+async def test_create_scan_deduplicates_concurrent_requests(
+    client: AsyncClient,
+    session_factory,
+):
+    responses = await asyncio.gather(
+        client.post("/api/v1/scans", json={"image": "nginx:latest"}),
+        client.post("/api/v1/scans", json={"image": "nginx:latest"}),
+    )
+
+    assert all(resp.status_code == 202 for resp in responses)
+    assert len({resp.json()["id"] for resp in responses}) == 1
+
+    async with session_factory() as session:
+        count = (
+            await session.execute(
+                select(func.count())
+                .select_from(ScanResult)
+                .where(ScanResult.image_name == "nginx:latest")
+            )
+        ).scalar_one()
+    assert count == 1
 
 
 @pytest.mark.asyncio
 async def test_create_scan_rejects_malicious_input(client: AsyncClient):
     resp = await client.post("/api/v1/scans", json={"image": "; rm -rf /"})
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_scan_returns_429_when_queue_is_full(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch,
+):
+    monkeypatch.setattr(settings, "max_pending_scans", 1)
+
+    db_session.add(ScanResult(image_name="busy:latest", scan_status="pending"))
+    await db_session.commit()
+
+    resp = await client.post("/api/v1/scans", json={"image": "other:latest"})
+    assert resp.status_code == 429
+    assert resp.json()["detail"] == "Scan queue is full. Try again later."
+
+
+@pytest.mark.asyncio
+async def test_app_startup_reconciles_interrupted_scans(db_session: AsyncSession):
+    pending_scan = ScanResult(image_name="pending:latest", scan_status="pending")
+    running_scan = ScanResult(
+        image_name="running:latest",
+        scan_status="running",
+        started_at=datetime.now(timezone.utc),
+    )
+    db_session.add_all([pending_scan, running_scan])
+    await db_session.commit()
+
+    async with app.router.lifespan_context(app):
+        pass
+
+    await db_session.refresh(pending_scan)
+    await db_session.refresh(running_scan)
+
+    assert pending_scan.scan_status == "failed"
+    assert pending_scan.failure_reason == "worker_restarted"
+    assert pending_scan.completed_at is not None
+    assert running_scan.scan_status == "failed"
+    assert running_scan.failure_reason == "worker_restarted"
+    assert running_scan.completed_at is not None
 
 
 @pytest.mark.asyncio
@@ -47,7 +165,8 @@ async def test_list_scans_with_data(client: AsyncClient, db_session: AsyncSessio
 
 @pytest.mark.asyncio
 async def test_list_scans_filter_by_status(
-    client: AsyncClient, db_session: AsyncSession
+    client: AsyncClient,
+    db_session: AsyncSession,
 ):
     db_session.add(ScanResult(image_name="alpine:3.19", scan_status="completed"))
     db_session.add(ScanResult(image_name="nginx:latest", scan_status="pending"))
@@ -87,12 +206,15 @@ async def test_list_scans_filter_by_date(client: AsyncClient, db_session: AsyncS
 
 @pytest.mark.asyncio
 async def test_get_scan_detail(
-    client: AsyncClient, db_session: AsyncSession, trivy_report
+    client: AsyncClient,
+    db_session: AsyncSession,
+    trivy_report,
 ):
     scan = ScanResult(
         image_name="nginx:latest",
+        image_digest=DIGEST,
         scan_status="completed",
-        summary={"critical": 1, "high": 1, "medium": 1, "low": 1},
+        summary={"critical": 1, "high": 1, "medium": 1, "low": 1, "unknown": 0},
         raw_report=trivy_report,
     )
     db_session.add(scan)
@@ -103,6 +225,7 @@ async def test_get_scan_detail(
     assert resp.status_code == 200
     data = resp.json()
     assert data["image_name"] == "nginx:latest"
+    assert data["image_digest"] == DIGEST
     assert len(data["vulnerabilities"]) == 4
     assert data["vulnerabilities"][0]["vuln_id"] == "CVE-2024-0001"
 
@@ -126,8 +249,35 @@ async def test_cancel_pending_scan(client: AsyncClient, db_session: AsyncSession
 
 
 @pytest.mark.asyncio
+async def test_cancel_running_scan_records_intent_without_lying(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    scan = ScanResult(
+        image_name="nginx:latest",
+        scan_status="running",
+        started_at=datetime.now(timezone.utc),
+    )
+    db_session.add(scan)
+    await db_session.commit()
+    await db_session.refresh(scan)
+
+    with patch("app.api.routes.scans.cancel_scan", AsyncMock()) as cancel_mock:
+        resp = await client.post(f"/api/v1/scans/{scan.id}/cancel")
+
+    await db_session.refresh(scan)
+
+    assert resp.status_code == 200
+    assert resp.json()["scan_status"] == "running"
+    assert scan.cancel_requested_at is not None
+    assert scan.completed_at is None
+    cancel_mock.assert_awaited_once_with(scan.id)
+
+
+@pytest.mark.asyncio
 async def test_cancel_completed_scan_returns_409(
-    client: AsyncClient, db_session: AsyncSession
+    client: AsyncClient,
+    db_session: AsyncSession,
 ):
     scan = ScanResult(image_name="nginx:latest", scan_status="completed")
     db_session.add(scan)
@@ -145,6 +295,27 @@ async def test_cancel_nonexistent_scan_returns_404(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_health_returns_503_when_db_is_unavailable(
+    client: AsyncClient,
+):
+    async def broken_get_db():
+        class BrokenSession:
+            async def execute(self, *_args, **_kwargs):
+                raise RuntimeError("db down")
+
+        yield BrokenSession()
+
+    app.dependency_overrides[get_db] = broken_get_db
+    try:
+        resp = await client.get("/api/v1/health")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert resp.status_code == 503
+    assert resp.json() == {"status": "degraded", "database": "unhealthy"}
+
+
+@pytest.mark.asyncio
 async def test_stats_empty(client: AsyncClient):
     resp = await client.get("/api/v1/stats")
     assert resp.status_code == 200
@@ -157,6 +328,7 @@ async def test_stats_empty(client: AsyncClient):
         "high": 0,
         "medium": 0,
         "low": 0,
+        "unknown": 0,
     }
     assert data["top_cves"] == []
     assert data["top_images"] == []
@@ -164,7 +336,9 @@ async def test_stats_empty(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_stats_aggregates_completed_scans(
-    client: AsyncClient, db_session: AsyncSession, trivy_report
+    client: AsyncClient,
+    db_session: AsyncSession,
+    trivy_report,
 ):
     for image in ("nginx:latest", "nginx:latest", "alpine:3.18"):
         scan = ScanResult(
@@ -186,6 +360,6 @@ async def test_stats_aggregates_completed_scans(
     assert data["failed_scans"] == 1
     assert data["severity_breakdown"]["critical"] == 3
     assert data["severity_breakdown"]["high"] == 3
-    assert len(data["top_cves"]) == 4  # fixture has 4 unique CVEs
-    assert data["top_cves"][0]["count"] == 3  # each CVE seen in 3 scans
+    assert len(data["top_cves"]) == 4
+    assert data["top_cves"][0]["count"] == 3
     assert data["top_images"][0] == {"image_name": "nginx:latest", "scan_count": 2}

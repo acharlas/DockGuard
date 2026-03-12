@@ -23,9 +23,26 @@ def parse_vulnerabilities(raw_report: dict | None) -> list[dict]:
     return vulns
 
 
+def extract_image_digest(raw_report: dict | None) -> str | None:
+    """Return the immutable image digest reported by Trivy, if available."""
+    if not raw_report:
+        return None
+
+    metadata = raw_report.get("Metadata") or {}
+    for repo_digest in metadata.get("RepoDigests", []):
+        _, separator, digest = repo_digest.partition("@")
+        if separator and digest.startswith("sha256:"):
+            return digest
+
+    image_id = metadata.get("ImageID")
+    if isinstance(image_id, str) and image_id.startswith("sha256:"):
+        return image_id
+    return None
+
+
 def compute_summary(raw_report: dict | None) -> dict:
     """Count vulnerabilities by severity from Trivy JSON report."""
-    summary = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    summary = {"critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0}
     for v in parse_vulnerabilities(raw_report):
         key = v["severity"].lower()
         if key in summary:
