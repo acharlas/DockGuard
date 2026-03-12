@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { listScans, Scan } from "@/lib/api";
-import { STATUS_STYLES } from "@/lib/constants";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { StatusBadge } from "@/components/StatusBadge";
 import { SkeletonTableRows } from "@/components/Skeleton";
 
 export default function ScansPage() {
@@ -89,11 +89,7 @@ export default function ScansPage() {
                       {scan.image_name}
                     </td>
                     <td className="px-6 py-3">
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[scan.scan_status] ?? "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300"}`}
-                      >
-                        {scan.scan_status}
-                      </span>
+                      <StatusBadge status={scan.scan_status} />
                     </td>
                     <td className="px-6 py-3 font-mono font-medium text-red-600 dark:text-red-400">
                       {scan.summary?.critical ?? "—"}

@@ -7,9 +7,9 @@ import { getScan, ScanDetail, Vulnerability } from "@/lib/api";
 import {
   SEVERITY_ORDER,
   SEVERITY_STYLES,
-  STATUS_STYLES,
 } from "@/lib/constants";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { StatusBadge } from "@/components/StatusBadge";
 import { SkeletonDetailPage } from "@/components/Skeleton";
 
 export default function ScanDetailPage() {
@@ -63,11 +63,7 @@ export default function ScanDetailPage() {
           <h1 className="text-xl font-bold font-mono text-gray-900 dark:text-gray-100 truncate">
             {scan.image_name}
           </h1>
-          <span
-            className={`shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[scan.scan_status] ?? "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300"}`}
-          >
-            {scan.scan_status}
-          </span>
+          <StatusBadge status={scan.scan_status} />
         </div>
         <ThemeToggle />
       </div>
