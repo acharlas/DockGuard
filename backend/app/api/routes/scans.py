@@ -188,9 +188,7 @@ async def cancel_scan_endpoint(scan_id: int, db: AsyncSession = Depends(get_db))
             )
             await db.commit()
     else:
-        if await _mark_cancel_requested_if_running(
-            db, scan_id, now
-        ):
+        if await _mark_cancel_requested_if_running(db, scan_id, now):
             should_kill_running_process = True
         await db.commit()
 

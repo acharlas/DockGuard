@@ -20,9 +20,7 @@ class Base(DeclarativeBase):
 
 class ScanResult(Base):
     __tablename__ = "scan_results"
-    __table_args__ = (
-        Index("idx_image_status", "image_name", "scan_status"),
-    )
+    __table_args__ = (Index("idx_image_status", "image_name", "scan_status"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     image_name: Mapped[str] = mapped_column(String(255))
