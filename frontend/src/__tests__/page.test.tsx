@@ -17,7 +17,7 @@ const mockScanDetail = {
   ...mockScanResponse,
   scan_status: "completed",
   completed_at: "2026-03-11T00:01:00Z",
-  summary: { critical: 1, high: 1, medium: 1, low: 1 },
+  summary: { critical: 1, high: 1, medium: 1, low: 1, unknown: 0 },
   vulnerabilities: [
     {
       vuln_id: "CVE-2024-0001",

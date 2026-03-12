@@ -92,7 +92,7 @@ async def test_get_scan_detail(
     scan = ScanResult(
         image_name="nginx:latest",
         scan_status="completed",
-        summary={"critical": 1, "high": 1, "medium": 1, "low": 1},
+        summary={"critical": 1, "high": 1, "medium": 1, "low": 1, "unknown": 0},
         raw_report=trivy_report,
     )
     db_session.add(scan)
