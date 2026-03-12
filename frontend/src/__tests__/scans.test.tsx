@@ -29,6 +29,7 @@ const mockScans = {
       id: 1,
       image_name: "nginx:latest",
       scan_status: "completed",
+      build_status: "completed",
       started_at: "2026-03-11T00:00:05Z",
       completed_at: "2026-03-11T00:01:00Z",
       summary: { critical: 2, high: 3, medium: 1, low: 0, unknown: 0 },
@@ -38,6 +39,7 @@ const mockScans = {
       id: 2,
       image_name: "alpine:3.19",
       scan_status: "failed",
+      build_status: "unavailable",
       started_at: null,
       completed_at: "2026-03-11T00:03:00Z",
       summary: null,
@@ -61,10 +63,10 @@ test("renders scan history heading", async () => {
 
   render(<ScansPage />);
 
-  expect(screen.getByText("Scan History")).toBeInTheDocument();
+  expect(screen.getByText("Scan history")).toBeInTheDocument();
 });
 
-test("renders scan rows from API", async () => {
+test("renders scan rows from API with build status", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({ ok: true, json: () => Promise.resolve(mockScans) })
   ) as jest.Mock;
@@ -76,9 +78,9 @@ test("renders scan rows from API", async () => {
   });
 
   expect(screen.getByText("alpine:3.19")).toBeInTheDocument();
-  expect(screen.getByText("completed")).toBeInTheDocument();
-  expect(screen.getByText("failed")).toBeInTheDocument();
-  expect(screen.getByText("2 total")).toBeInTheDocument();
+  expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
+  expect(screen.getByText("unavailable")).toBeInTheDocument();
+  expect(screen.getByText("2 scans recorded")).toBeInTheDocument();
   expect(screen.getByText("Submitted")).toBeInTheDocument();
   expect(
     screen.getByText(new Date("2026-03-11T00:00:00Z").toLocaleString())

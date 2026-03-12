@@ -15,6 +15,8 @@ export const STATUS_STYLES: Record<string, string> = {
     "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
   failed: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
   cancelled: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+  unavailable:
+    "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
 };
 
 export const SEVERITY_STYLES: Record<string, string> = {

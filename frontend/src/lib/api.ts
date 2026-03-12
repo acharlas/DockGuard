@@ -15,11 +15,42 @@ export interface ScanSummary {
   unknown: number;
 }
 
+export interface BuildSummary {
+  image_size_bytes: number | null;
+  efficiency_score: number | null;
+  wasted_bytes: number | null;
+  wasted_percent: number | null;
+  layer_count: number | null;
+  inefficient_layer_count: number | null;
+}
+
+export interface BuildLayer {
+  index: number;
+  layer_id: string | null;
+  instruction: string | null;
+  size_bytes: number | null;
+  wasted_bytes: number | null;
+  wasted_percent: number | null;
+  efficiency_score: number | null;
+}
+
+export interface BuildReport {
+  layers: BuildLayer[];
+}
+
+export interface BuildAnalysis {
+  status: string;
+  failure_reason: string | null;
+  summary: BuildSummary | null;
+  report: BuildReport | null;
+}
+
 export interface Scan {
   id: number;
   image_name: string;
   image_digest?: string | null;
   scan_status: string;
+  build_status?: string | null;
   started_at: string | null;
   completed_at: string | null;
   summary: ScanSummary | null;
@@ -28,6 +59,7 @@ export interface Scan {
 
 export interface ScanDetail extends Scan {
   vulnerabilities: Vulnerability[];
+  build?: BuildAnalysis | null;
 }
 
 export class ApiError extends Error {
@@ -107,11 +139,20 @@ export interface TopImage {
   scan_count: number;
 }
 
+export interface BuildBreakdown {
+  completed: number;
+  failed: number;
+  unavailable: number;
+}
+
 export interface Stats {
   total_scans: number;
   completed_scans: number;
   failed_scans: number;
   severity_breakdown: ScanSummary;
+  build_breakdown: BuildBreakdown;
+  avg_efficiency_score: number | null;
+  total_wasted_bytes: number;
   top_cves: TopCve[];
   top_images: TopImage[];
 }

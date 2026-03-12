@@ -2,12 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --dockguard-bg: #eef2f7;
+  --dockguard-bg-dark: #020617;
+}
+
+html {
+  font-family: var(--font-geist-sans), sans-serif;
+}
+
 body {
-  @apply bg-gray-50 text-gray-900 antialiased;
+  background-image:
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.14), transparent 28%),
+    radial-gradient(circle at top right, rgba(248, 250, 252, 0.92), transparent 24%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 48%, #e2e8f0 100%);
 }
 
 .dark body {
-  @apply bg-gray-950 text-gray-100;
+  background-image:
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 24%),
+    radial-gradient(circle at 85% 10%, rgba(14, 165, 233, 0.1), transparent 18%),
+    linear-gradient(180deg, #020617 0%, #0f172a 48%, #111827 100%);
+}
+
+code,
+pre,
+.font-mono {
+  font-family: var(--font-geist-mono), monospace;
 }
 
 @keyframes shimmer {
@@ -22,9 +43,9 @@ body {
 .skeleton-shimmer {
   background: linear-gradient(
     90deg,
-    #e5e7eb 25%,
-    #f3f4f6 50%,
-    #e5e7eb 75%
+    #e2e8f0 25%,
+    #f8fafc 50%,
+    #e2e8f0 75%
   );
   background-size: 800px 100%;
   animation: shimmer 1.4s ease-in-out infinite;
@@ -33,9 +54,9 @@ body {
 .dark .skeleton-shimmer {
   background: linear-gradient(
     90deg,
-    #1f2937 25%,
-    #374151 50%,
-    #1f2937 75%
+    #0f172a 25%,
+    #1e293b 50%,
+    #0f172a 75%
   );
   background-size: 800px 100%;
 }

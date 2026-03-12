@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { listScans, Scan } from "@/lib/api";
+import { formatDateTime } from "@/lib/format";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SkeletonTableRows } from "@/components/Skeleton";
@@ -29,76 +30,77 @@ export default function ScansPage() {
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <main className="max-w-6xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/"
-            className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-          >
-            ← Back
-          </Link>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            Scan History
-          </h1>
-          <span className="text-sm font-mono text-gray-400 dark:text-gray-500">
-            {loading ? "…" : `${total} total`}
-          </span>
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <header className="rounded-[30px] border border-slate-200/80 bg-white/85 px-5 py-5 shadow-[0_24px_90px_rgba(15,23,42,0.08)] dark:border-slate-800 dark:bg-slate-950/80 dark:shadow-none sm:px-7">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
+              <Link href="/" className="transition-colors hover:text-slate-950 dark:hover:text-slate-100">
+                ← Dashboard
+              </Link>
+              <span>/</span>
+              <span>History</span>
+            </div>
+            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
+              Scan history
+            </h1>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+              {loading ? "Loading recent analysis runs..." : `${total} scans recorded`}
+            </p>
+          </div>
+          <ThemeToggle />
         </div>
-        <ThemeToggle />
-      </div>
+      </header>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow border border-gray-100 dark:border-gray-800 overflow-hidden">
+      <section className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/85 shadow-[0_18px_48px_rgba(15,23,42,0.06)] dark:border-slate-800 dark:bg-slate-950/80 dark:shadow-none">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 text-left text-[11px] uppercase tracking-[0.24em] text-slate-500 dark:bg-slate-900/70 dark:text-slate-400">
               <tr>
-                <th className="px-6 py-3">Image</th>
-                <th className="px-6 py-3">Status</th>
-                <th className="px-6 py-3">Critical</th>
-                <th className="px-6 py-3">High</th>
-                <th className="px-6 py-3">Submitted</th>
+                <th className="px-6 py-4">Image</th>
+                <th className="px-6 py-4">Security</th>
+                <th className="px-6 py-4">Build</th>
+                <th className="px-6 py-4">Critical</th>
+                <th className="px-6 py-4">Submitted</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
               {loading ? (
                 <SkeletonTableRows rows={8} cols={5} />
               ) : scans.length === 0 ? (
                 <tr>
                   <td
                     colSpan={5}
-                    className="px-6 py-12 text-center text-gray-400 dark:text-gray-600 text-sm"
+                    className="px-6 py-12 text-center text-sm text-slate-500 dark:text-slate-400"
                   >
-                    No scans yet — run your first scan from the{" "}
-                    <Link
-                      href="/"
-                      className="text-blue-600 dark:text-blue-400 hover:underline"
-                    >
+                    No scans yet. Run your first analysis from the{" "}
+                    <Link href="/" className="text-sky-600 hover:underline dark:text-sky-400">
                       dashboard
                     </Link>
+                    .
                   </td>
                 </tr>
               ) : (
                 scans.map((scan) => (
                   <tr
                     key={scan.id}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
+                    className="cursor-pointer bg-white transition-colors hover:bg-slate-50 dark:bg-slate-950 dark:hover:bg-slate-900/70"
                     onClick={() => router.push(`/scans/${scan.id}`)}
                   >
-                    <td className="px-6 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">
+                    <td className="px-6 py-4 font-mono text-xs text-slate-700 dark:text-slate-300">
                       {scan.image_name}
                     </td>
-                    <td className="px-6 py-3">
+                    <td className="px-6 py-4">
                       <StatusBadge status={scan.scan_status} />
                     </td>
-                    <td className="px-6 py-3 font-mono font-medium text-red-600 dark:text-red-400">
+                    <td className="px-6 py-4">
+                      {scan.build_status ? <StatusBadge status={scan.build_status} /> : "—"}
+                    </td>
+                    <td className="px-6 py-4 font-mono font-medium text-rose-600 dark:text-rose-400">
                       {scan.summary?.critical ?? "—"}
                     </td>
-                    <td className="px-6 py-3 font-mono font-medium text-orange-600 dark:text-orange-400">
-                      {scan.summary?.high ?? "—"}
-                    </td>
-                    <td className="px-6 py-3 text-xs text-gray-400 dark:text-gray-500 font-mono">
-                      {new Date(scan.created_at).toLocaleString()}
+                    <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">
+                      {formatDateTime(scan.created_at)}
                     </td>
                   </tr>
                 ))
@@ -108,27 +110,27 @@ export default function ScansPage() {
         </div>
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 dark:border-gray-800">
+          <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4 dark:border-slate-800">
             <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
               disabled={page === 1}
-              className="px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 disabled:opacity-40 transition-colors"
+              className="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900"
             >
               Previous
             </button>
-            <span className="text-sm text-gray-500 dark:text-gray-400 font-mono">
+            <span className="text-sm text-slate-500 dark:text-slate-400">
               {page} / {totalPages}
             </span>
             <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
               disabled={page === totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 disabled:opacity-40 transition-colors"
+              className="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900"
             >
               Next
             </button>
           </div>
         )}
-      </div>
+      </section>
     </main>
   );
 }
