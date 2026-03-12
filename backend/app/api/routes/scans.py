@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer, load_only
 
 from app.db.session import get_db
 from app.models.scan import ScanResult, ScanStatus
@@ -118,8 +119,11 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
         )
     ).scalar() or 0
 
+    # Severity + image counts: load everything EXCEPT raw_report (~100B vs ~200KB/row)
     result = await db.execute(
-        select(ScanResult).where(ScanResult.scan_status == ScanStatus.COMPLETED)
+        select(ScanResult)
+        .options(defer(ScanResult.raw_report))
+        .where(ScanResult.scan_status == ScanStatus.COMPLETED)
     )
     scans = result.scalars().all()
 
@@ -130,24 +134,36 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
         "low": 0,
         "unknown": 0,
     }
-    cve_map: dict[str, dict] = {}
     image_counts: dict[str, int] = {}
 
     for scan in scans:
         if scan.summary:
             for key in severity:
                 severity[key] += scan.summary.get(key, 0)
-        if scan.raw_report:
-            for vuln in parse_vulnerabilities(scan.raw_report):
-                vid = vuln["vuln_id"]
-                if vid not in cve_map:
-                    cve_map[vid] = {
-                        "count": 0,
-                        "severity": vuln["severity"],
-                        "title": vuln["title"],
-                    }
-                cve_map[vid]["count"] += 1
         image_counts[scan.image_name] = image_counts.get(scan.image_name, 0) + 1
+
+    # Top CVEs: load only raw_report from the 200 most recent completed scans
+    cve_result = await db.execute(
+        select(ScanResult)
+        .options(load_only(ScanResult.raw_report))
+        .where(ScanResult.scan_status == ScanStatus.COMPLETED)
+        .where(ScanResult.raw_report.is_not(None))
+        .order_by(ScanResult.completed_at.desc())
+        .limit(200)
+    )
+    cve_scans = cve_result.scalars().all()
+
+    cve_map: dict[str, dict] = {}
+    for scan in cve_scans:
+        for vuln in parse_vulnerabilities(scan.raw_report):
+            vid = vuln["vuln_id"]
+            if vid not in cve_map:
+                cve_map[vid] = {
+                    "count": 0,
+                    "severity": vuln["severity"],
+                    "title": vuln["title"],
+                }
+            cve_map[vid]["count"] += 1
 
     top_cves = sorted(cve_map.items(), key=lambda x: x[1]["count"], reverse=True)[:10]
     top_images = sorted(image_counts.items(), key=lambda x: x[1], reverse=True)[:5]
