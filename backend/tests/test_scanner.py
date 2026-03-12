@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import select
@@ -37,8 +37,24 @@ async def test_scan_success_transitions(db_session: AsyncSession, trivy_report):
     with patch(
         "app.services.scanner.asyncio.create_subprocess_exec",
         return_value=fake_process,
-    ):
+    ) as mock_exec:
         await _execute_scan(db_session, scan_id)
+
+    # Verify Trivy was called with the correct arguments
+    mock_exec.assert_called_once_with(
+        "trivy",
+        "image",
+        "--format",
+        "json",
+        "--no-progress",
+        "--scanners",
+        "vuln",
+        "--timeout",
+        ANY,
+        "nginx:latest",
+        stdout=ANY,
+        stderr=ANY,
+    )
 
     result = await db_session.execute(
         select(ScanResult).where(ScanResult.id == scan_id)
