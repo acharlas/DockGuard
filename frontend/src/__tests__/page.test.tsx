@@ -54,6 +54,21 @@ const mockScanDetail = {
   ],
 };
 
+jest.mock("next/link", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const React = require("react");
+  return {
+    __esModule: true,
+    default: ({
+      children,
+      href,
+    }: {
+      children: React.ReactNode;
+      href: string;
+    }) => React.createElement("a", { href }, children),
+  };
+});
+
 // Mock recharts to avoid SVG rendering issues in jsdom
 jest.mock("recharts", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
