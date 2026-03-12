@@ -33,12 +33,16 @@ services:
   backend:
     build: ./backend
     restart: unless-stopped
+    group_add:
+      - "${DOCKER_GID:-1001}"
     volumes:
       - trivycache:/home/dockguard/.cache/trivy
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       DATABASE_URL: postgresql+asyncpg://dockguard:dockguard@postgres:5432/dockguard
       CORS_ORIGINS: '["http://localhost:3000"]'
       REDIS_URL: redis://redis:6379/0
+      BUILD_TIMEOUT: 600
       MAX_PENDING_SCANS: 25
     depends_on:
       postgres:

@@ -24,10 +24,15 @@ services:
   backend:
     image: ${backend_image}
     restart: unless-stopped
+    group_add:
+      - "${DOCKER_GID}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       DATABASE_URL: ${database_url}
       CORS_ORIGINS: '${cors_origins}'
       REDIS_URL: redis://redis:6379/0
+      BUILD_TIMEOUT: 600
     depends_on:
       - redis
     command: >
@@ -49,5 +54,6 @@ volumes:
 COMPOSE
 
 cd /opt/dockguard
+export DOCKER_GID="$(stat -c '%g' /var/run/docker.sock)"
 docker compose pull
 docker compose up -d

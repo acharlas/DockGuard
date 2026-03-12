@@ -39,6 +39,8 @@ services:
       context: ./backend
       target: dev
     restart: unless-stopped
+    group_add:
+      - "${DOCKER_GID:-1001}"
     ports:
       - "8000:8000"
     volumes:
@@ -47,10 +49,12 @@ services:
       - ./backend/alembic:/app/alembic
       - ./backend/alembic.ini:/app/alembic.ini
       - trivycache:/home/dockguard/.cache/trivy
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       DATABASE_URL: postgresql+asyncpg://dockguard:dockguard@postgres:5432/dockguard
       CORS_ORIGINS: '["http://localhost:3000"]'
       REDIS_URL: redis://redis:6379/0
+      BUILD_TIMEOUT: 600
       MAX_PENDING_SCANS: 25
     depends_on:
       postgres:
