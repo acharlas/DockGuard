@@ -62,7 +62,13 @@ export function ScanWorkspace({
         </div>
       </div>
 
-      <div className={compact ? "p-5 sm:p-7" : "p-6 sm:p-8"}>
+      <div
+        className={
+          compact
+            ? "px-5 pb-5 pt-3 sm:px-7 sm:pb-7 sm:pt-4"
+            : "px-6 pb-6 pt-4 sm:px-8 sm:pb-8 sm:pt-5"
+        }
+      >
         {activeTab === "security" ? (
           <SecurityWorkspace vulnerabilities={vulnerabilities} />
         ) : (
@@ -108,7 +114,7 @@ function SecurityWorkspace({
   vulnerabilities: Vulnerability[];
 }) {
   return (
-    <div className="space-y-5 sm:space-y-7">
+    <div className="space-y-5 sm:space-y-7 md:space-y-0">
       <div className="overflow-x-auto sm:overflow-hidden sm:rounded-[24px] sm:border sm:border-[color:var(--dockguard-border)]">
         <div className="px-1 pb-3 sm:border-b sm:border-[color:var(--dockguard-border)] sm:bg-[color:var(--dockguard-panel)] sm:px-5 sm:py-4">
           <h3 className="text-lg font-semibold text-[color:var(--dockguard-ink)]">
@@ -225,7 +231,7 @@ function BuildWorkspace({
   }
 
   return (
-    <div className="space-y-5 sm:space-y-7">
+    <div className="space-y-5 sm:space-y-7 md:space-y-0">
       <div className="grid gap-3 md:hidden">
         <BuildMetricCard
           label="Image Size"
