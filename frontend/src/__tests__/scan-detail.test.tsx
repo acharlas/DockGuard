@@ -113,7 +113,9 @@ test("build tab renders layer insights", async () => {
 
   expect(screen.getByText("Highest waste contributors")).toBeInTheDocument();
   expect(screen.getByText("RUN apk add curl bash")).toBeInTheDocument();
-  expect(screen.getByText("Wasted Space")).toBeInTheDocument();
+  expect(screen.getByLabelText("Build efficiency distribution")).toBeInTheDocument();
+  expect(screen.getAllByText("Image Size").length).toBeGreaterThan(0);
+  expect(screen.queryByText("Issues")).not.toBeInTheDocument();
 });
 
 test("shows error when scan not found", async () => {

@@ -1,10 +1,12 @@
 "use client";
 
-import { ScanWorkspace } from "@/components/ScanWorkspace";
-import { SeverityDonut } from "@/components/SeverityDonut";
+import { useState } from "react";
+import { ScanInsightPanel } from "@/components/ScanInsightPanel";
+import { ScanWorkspace, WorkspaceTab } from "@/components/ScanWorkspace";
 import { useActiveScan } from "@/hooks/useActiveScan";
 
 export default function Dashboard() {
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("security");
   const {
     image,
     setImage,
@@ -86,7 +88,13 @@ export default function Dashboard() {
         <div className="min-w-0">
           {scan ? (
             <div className="space-y-4">
-              <ScanWorkspace key={scan.id} scan={scan} compact />
+              <ScanWorkspace
+                key={scan.id}
+                scan={scan}
+                compact
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+              />
             </div>
           ) : (
             <EmptyWorkspace />
@@ -94,7 +102,7 @@ export default function Dashboard() {
         </div>
 
         <div className="hidden md:block">
-          <SeverityDonut summary={scan?.summary ?? null} />
+          <ScanInsightPanel activeTab={activeTab} scan={scan} />
         </div>
       </section>
     </div>

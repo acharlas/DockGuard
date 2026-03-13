@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { BuildLayer, BuildSummary, ScanDetail, Vulnerability } from "@/lib/api";
 import { formatBytes, formatPercent, formatScore } from "@/lib/format";
 import {
@@ -8,21 +8,21 @@ import {
   SEVERITY_ORDER,
 } from "@/lib/constants";
 
-type WorkspaceTab = "security" | "build";
+export type WorkspaceTab = "security" | "build";
 
 type ScanWorkspaceProps = {
   scan: ScanDetail;
   compact?: boolean;
-  initialTab?: WorkspaceTab;
+  activeTab: WorkspaceTab;
+  onTabChange: (tab: WorkspaceTab) => void;
 };
 
 export function ScanWorkspace({
   scan,
   compact = false,
-  initialTab = "security",
+  activeTab,
+  onTabChange,
 }: ScanWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialTab);
-
   const vulnerabilities = useMemo(
     () =>
       [...scan.vulnerabilities].sort(
@@ -52,12 +52,12 @@ export function ScanWorkspace({
           <TabButton
             label="Security"
             active={activeTab === "security"}
-            onClick={() => setActiveTab("security")}
+            onClick={() => onTabChange("security")}
           />
           <TabButton
             label="Build"
             active={activeTab === "build"}
-            onClick={() => setActiveTab("build")}
+            onClick={() => onTabChange("build")}
           />
         </div>
       </div>
@@ -226,25 +226,25 @@ function BuildWorkspace({
 
   return (
     <div className="space-y-5 sm:space-y-7">
-      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
-        <MetricCard
+      <div className="grid gap-3 md:hidden">
+        <BuildMetricCard
           label="Image Size"
           value={formatBytes(buildSummary.image_size_bytes)}
         />
-        <MetricCard
+        <BuildMetricCard
           label="Wasted Space"
           value={formatBytes(buildSummary.wasted_bytes)}
         />
-        <MetricCard
+        <BuildMetricCard
           label="Efficiency Score"
           value={formatScore(buildSummary.efficiency_score)}
         />
-        <MetricCard
+        <BuildMetricCard
           label="Wasted Percent"
           value={formatPercent(buildSummary.wasted_percent)}
         />
-        <MetricCard label="Layers" value={String(buildSummary.layer_count ?? "—")} />
-        <MetricCard
+        <BuildMetricCard label="Layers" value={String(buildSummary.layer_count ?? "—")} />
+        <BuildMetricCard
           label="Waste Contributors"
           value={String(buildSummary.inefficient_layer_count ?? "—")}
         />
@@ -313,7 +313,7 @@ function BuildWorkspace({
   );
 }
 
-function MetricCard({
+export function BuildMetricCard({
   label,
   value,
   accent = "text-[color:var(--dockguard-ink)]",

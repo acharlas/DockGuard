@@ -152,8 +152,10 @@ test("switches to the build tab and renders build metrics", async () => {
   await user.click(screen.getAllByRole("button", { name: "Build" })[0]);
 
   expect(screen.getByText("Highest waste contributors")).toBeInTheDocument();
-  expect(screen.getByText("Wasted Space")).toBeInTheDocument();
+  expect(screen.getByLabelText("Build efficiency distribution")).toBeInTheDocument();
+  expect(screen.getAllByText("Image Size").length).toBeGreaterThan(0);
   expect(screen.getByText("RUN apk add curl bash")).toBeInTheDocument();
+  expect(screen.queryByText("Issues")).not.toBeInTheDocument();
 });
 
 test("shows queue message when scan queue is full", async () => {

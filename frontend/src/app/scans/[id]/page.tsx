@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { getScan, ScanDetail } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
+import { ScanInsightPanel } from "@/components/ScanInsightPanel";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SkeletonDetailPage } from "@/components/Skeleton";
-import { ScanWorkspace } from "@/components/ScanWorkspace";
-import { SeverityDonut } from "@/components/SeverityDonut";
+import { ScanWorkspace, WorkspaceTab } from "@/components/ScanWorkspace";
 
 export default function ScanDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("security");
   const [scan, setScan] = useState<ScanDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +37,7 @@ export default function ScanDetailPage() {
 
   return (
     <div className="space-y-6 lg:space-y-8">
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <section className="md:grid md:gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="rounded-[30px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] p-5 shadow-[0_18px_48px_rgba(120,53,15,0.08)] sm:p-6">
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--dockguard-muted)]">
             Analysis
@@ -58,10 +59,17 @@ export default function ScanDetailPage() {
           </div>
         </div>
 
-        <SeverityDonut summary={scan.summary} />
+        <div className="hidden md:block">
+          <ScanInsightPanel activeTab={activeTab} scan={scan} />
+        </div>
       </section>
 
-      <ScanWorkspace key={scan.id} scan={scan} />
+      <ScanWorkspace
+        key={scan.id}
+        scan={scan}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
     </div>
   );
 }
