@@ -3,7 +3,7 @@
 [![CI/CD](https://github.com/acharlas/DockGuard/actions/workflows/ci.yml/badge.svg)](https://github.com/acharlas/DockGuard/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**DockGuard** is a full-stack container image analysis dashboard with two lenses: **Security** via [Trivy](https://trivy.dev) and **Build** via [Dive](https://github.com/wagoodman/dive). Paste any Docker image reference, open one scan workspace, and inspect both package risk and layer efficiency from a single `docker compose up --build`.
+**DockGuard** is a local-first container image analysis dashboard with two lenses: **Security** via [Trivy](https://trivy.dev) and **Build** via [Dive](https://github.com/wagoodman/dive). Paste any Docker image reference, open one scan workspace, and inspect package risk from a single `docker compose up --build`; the Build lens is available only when the backend is explicitly granted Docker socket access in local/dev.
 
 ---
 
@@ -15,7 +15,7 @@ graph TD
     Frontend -->|route handler proxy| Backend["FastAPI\nBackend :8000"]
     Backend -->|asyncpg| DB[(PostgreSQL 16)]
     Backend -->|subprocess| Trivy["Trivy CLI\nSecurity analysis"]
-    Backend -->|subprocess + docker.sock| Dive["Dive CLI\nBuild analysis"]
+    Backend -->|subprocess + docker.sock\n(local/dev only)| Dive["Dive CLI\nBuild analysis"]
     Backend -->|SETEX 10min| Redis[(Redis 7)]
     Backend -->|/metrics| Prometheus["Prometheus\n:9090"]
     Prometheus --> Grafana["Grafana\n:3001"]
@@ -37,7 +37,7 @@ graph TD
 |-------|-----------|
 | Backend | FastAPI (Python 3.12), SQLAlchemy async, Alembic |
 | Frontend | Next.js 14 App Router, TypeScript, Tailwind CSS, Recharts |
-| Scanner | Trivy CLI + Dive CLI (best-effort Build analysis through Docker socket access) |
+| Scanner | Trivy CLI + optional Dive CLI (Build analysis only when Docker socket access is explicitly enabled) |
 | Database | PostgreSQL 16 (vulnerabilities stored as JSON in `raw_report`) |
 | Cache | Redis 7 (10-min TTL for digest-pinned image reuse, graceful degradation) |
 | Monitoring | Prometheus + Grafana (5 custom metrics) |
@@ -61,13 +61,11 @@ docker compose up --build
 | Grafana | http://localhost:3001 (admin / admin) |
 | Prometheus | http://localhost:9090 |
 
-> **First run:** The backend pre-warms the Trivy vulnerability database on startup (~50 MB download, ~1 min). Subsequent starts use the cached DB volume and are instant.
->
 > **Cache permissions:** The Compose stack now runs a one-shot `trivy-cache-init` service that fixes ownership on the named Trivy cache volume before the backend starts. Rebuild the backend image after pulling these changes.
 >
 > **API access:** The default stack exposes only the frontend. Browser API calls go through the Next.js route-handler proxy. Use `docker compose -f docker-compose.dev.yml up` if you want direct access to Swagger at `http://localhost:8000/docs`.
 >
-> **Build analysis:** The backend mounts `/var/run/docker.sock` so Dive can inspect real images. Set `DOCKER_GID` to the socket group on your host before starting the stack.
+> **Build analysis:** The local Docker Compose stacks set `ENABLE_BUILD_ANALYSIS=true` and mount `/var/run/docker.sock` so Dive can inspect real images. Set `DOCKER_GID` to the socket group on your host before starting the stack.
 >
 > **Grafana sidebar link:** The local Docker Compose stacks bake `http://localhost:3001` into the frontend build. For any other environment, set `NEXT_PUBLIC_GRAFANA_URL` explicitly before building the frontend image. If it is unset, the Grafana button is hidden.
 
@@ -85,9 +83,15 @@ Launches scans for `nginx:latest`, `node:18-alpine`, `python:3.12-slim`, `postgr
 
 > Run `./scripts/seed.sh` first to populate data.
 
-| Dashboard | Scan Detail | Grafana |
-|-----------|------------|---------|
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Scan Detail](docs/screenshots/scan-detail.png) | ![Grafana](docs/screenshots/grafana.png) |
+Add screenshots to [`docs/screenshots/`](docs/screenshots/) with these filenames:
+
+- `dashboard-security.png`
+- `dashboard-build.png`
+- `history.png`
+
+| Dashboard Security | Dashboard Build | History |
+|--------------------|-----------------|---------|
+| ![Dashboard Security](docs/screenshots/dashboard-security.png) | ![Dashboard Build](docs/screenshots/dashboard-build.png) | ![History](docs/screenshots/history.png) |
 
 ---
 
@@ -123,13 +127,13 @@ The security gate (`--exit-code 1` on CRITICAL) means broken images never reach 
 | `POST` | `/api/v1/scans` | Initiate analysis (`202` for new/in-flight work, `200` for digest-cached completed result, may return `429` when the queue is full) |
 | `GET` | `/api/v1/scans` | Paginated scan history (filters: `status`, `date_from`, `date_to`) |
 | `GET` | `/api/v1/scans/{id}` | Scan detail with Security and Build sections |
-| `GET` | `/api/v1/stats` | Totals, severity breakdown, build metrics, top 10 CVEs, top 5 images |
+| `GET` | `/api/v1/stats` | Totals, severity breakdown, build metrics, top 10 CVEs across completed scans, top 5 images |
 | `GET` | `/api/v1/health` | Health check (DB ping) |
 | `GET` | `/metrics` | Prometheus metrics |
 
 Direct backend docs are available in the dev stack at `http://localhost:8000/docs` and `http://localhost:8000/redoc`.
 
-The frontend proxies browser API calls through a Next.js route handler. For this MVP, abuse control is intentionally simple: duplicate suppression, queue caps, and bounded scan concurrency. There is no per-client rate limiting because the app does not have a trustworthy client-identity boundary.
+The frontend proxies browser API calls through a Next.js route handler. The repository is designed for local/demo use, not public multi-user hosting. The sample Terraform deployment is demo-only, restricts dashboard access to the same CIDR you allow for SSH, and disables the Build lens by setting `ENABLE_BUILD_ANALYSIS=false`.
 
 If the backend restarts, any `pending` or `running` scans are reconciled to `failed` with `failure_reason = "worker_restarted"`. The app does not try to fake durable in-process jobs.
 
@@ -184,7 +188,7 @@ docker compose -f docker-compose.dev.yml exec backend ruff check app/ tests/
 docker compose -f docker-compose.dev.yml exec frontend npm run lint
 
 # Terraform validate
-cd terraform && terraform init && terraform validate
+cd terraform && terraform init -backend=false && terraform fmt -check && terraform validate
 ```
 
 ---
@@ -199,13 +203,14 @@ cd terraform && terraform init && terraform validate
 | Redis added at Day 5 | Not Day 1. Added when the use case was real (reuse digest-pinned scans safely), not speculatively. |
 | Flat Terraform (`main.tf`) | Modules add abstraction cost. For one VPC + one EC2 + one RDS, a flat file with clear comments is easier to read and review. |
 | `templatefile()` for `user_data` | Separates HCL interpolation from bash, avoiding nested heredoc parsing issues and making the bootstrap script testable independently. |
-| Per-scan Trivy cache dir | Concurrent scans get isolated `fanal` (image layer) cache dirs with a symlink to the shared pre-warmed DB — eliminates file lock contention without sacrificing DB caching. |
+| Build lens gated by config | `ENABLE_BUILD_ANALYSIS` keeps Docker-socket access out of demo deployments while preserving the full Build lens in local/dev Compose. |
 
 ## Deployment Notes
 
-- The sample Terraform deployment is HTTP-only on port `80`. It does not terminate TLS.
-- Restrict `ssh_allowed_cidr` explicitly in `terraform.tfvars`; there is no world-open SSH default anymore.
-- The Build lens requires Docker socket access on the backend host. Terraform user-data exports `DOCKER_GID` automatically before `docker compose up`.
+- The sample Terraform deployment is demo-only. Resource names stay fixed to the `${project}-demo` pattern; there is no `environment` input anymore.
+- The sample Terraform deployment remains HTTP-only on port `80`, restricts dashboard access to `ssh_allowed_cidr`, and does not attempt to be production-hardened.
+- Restrict `ssh_allowed_cidr` explicitly in `terraform.tfvars`; the same CIDR also gates dashboard access in the sample Terraform stack.
+- The Build lens is disabled in the sample Terraform deployment. Use local/dev Compose when you want Docker-socket-backed Build analysis.
 
 ---
 
