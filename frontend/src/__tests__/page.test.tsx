@@ -182,6 +182,30 @@ test("shows queue message when scan queue is full", async () => {
   });
 });
 
+test("shows backend-unavailable message when scan creation fails upstream", async () => {
+  const user = userEvent.setup();
+
+  global.fetch = jest.fn((url: string, options?: RequestInit) => {
+    if (options?.method === "POST" && url === "/api/v1/scans") {
+      return Promise.resolve({
+        ok: false,
+        status: 502,
+        json: () => Promise.resolve({ detail: "Backend unavailable." }),
+      });
+    }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
+  }) as jest.Mock;
+
+  render(<Dashboard />);
+
+  await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
+  await user.click(screen.getByRole("button", { name: /run analysis/i }));
+
+  await waitFor(() => {
+    expect(screen.getByText("Failed to start scan. Backend unavailable.")).toBeInTheDocument();
+  });
+});
+
 test("keeps the current workspace visible when a new submit fails", async () => {
   const user = userEvent.setup();
   let createAttempts = 0;

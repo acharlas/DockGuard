@@ -127,3 +127,23 @@ test("shows error when scan not found", async () => {
     expect(screen.getByText("Scan not found")).toBeInTheDocument();
   });
 });
+
+test("shows backend-unavailable state for non-404 failures", async () => {
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      ok: false,
+      status: 502,
+      json: () => Promise.resolve({ detail: "Backend unavailable." }),
+    })
+  ) as jest.Mock;
+
+  render(<ScanDetailPage />);
+
+  await waitFor(() => {
+    expect(
+      screen.getByText("Failed to load scan details. Check backend availability.")
+    ).toBeInTheDocument();
+  });
+
+  expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+});

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { getScan, ScanDetail } from "@/lib/api";
+import { ApiError, getScan, ScanDetail } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { ScanInsightPanel } from "@/components/ScanInsightPanel";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -15,13 +15,38 @@ export default function ScanDetailPage() {
   const [scan, setScan] = useState<ScanDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
     getScan(Number(id))
-      .then(setScan)
-      .catch(() => setError("Scan not found"))
-      .finally(() => setLoading(false));
-  }, [id]);
+      .then((data) => {
+        if (!cancelled) {
+          setScan(data);
+        }
+      })
+      .catch((err) => {
+        if (cancelled) {
+          return;
+        }
+        if (err instanceof ApiError && err.status === 404) {
+          setError("Scan not found");
+          return;
+        }
+        setError("Failed to load scan details. Check backend availability.");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, reloadToken]);
 
   if (loading) {
     return <SkeletonDetailPage />;
@@ -31,6 +56,15 @@ export default function ScanDetailPage() {
     return (
       <section className="rounded-[28px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] px-6 py-8">
         <p className="text-rose-700 dark:text-rose-300">{error ?? "Scan not found"}</p>
+        {error !== "Scan not found" && (
+          <button
+            type="button"
+            onClick={() => setReloadToken((current) => current + 1)}
+            className="mt-4 inline-flex rounded-full border border-[color:var(--dockguard-border)] px-4 py-2 text-sm font-medium text-[color:var(--dockguard-muted)] transition hover:bg-[color:var(--dockguard-panel)] hover:text-[color:var(--dockguard-ink)]"
+          >
+            Retry
+          </button>
+        )}
       </section>
     );
   }
