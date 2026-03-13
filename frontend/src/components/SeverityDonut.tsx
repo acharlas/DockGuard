@@ -64,7 +64,7 @@ export function SeverityDonut({
               stroke="currentColor"
               strokeWidth={STROKE_WIDTH}
               fill="transparent"
-              className="text-amber-100 dark:text-stone-800"
+              className="text-stone-200 dark:text-slate-800"
             />
             {segments.map((segment) => (
               <circle

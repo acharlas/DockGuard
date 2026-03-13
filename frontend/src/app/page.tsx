@@ -43,7 +43,7 @@ export default function Dashboard() {
               value={image}
               onChange={(event) => setImage(event.target.value)}
               placeholder="nginx:latest"
-              className="w-full rounded-[18px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-4 py-3 font-mono text-sm text-[color:var(--dockguard-ink)] placeholder:text-[color:var(--dockguard-muted)] focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 sm:rounded-[22px] sm:py-4"
+              className="w-full rounded-[18px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-4 py-3 font-mono text-sm text-[color:var(--dockguard-ink)] placeholder:text-[color:var(--dockguard-muted)] focus:border-[color:var(--dockguard-accent)] focus:outline-none focus:ring-2 focus:ring-[color:var(--dockguard-accent-soft)] sm:rounded-[22px] sm:py-4"
               disabled={loading}
             />
           </label>
@@ -52,7 +52,7 @@ export default function Dashboard() {
             <button
               type="submit"
               disabled={loading || !image.trim()}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:py-3"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-[color:var(--dockguard-accent)] px-4 py-2.5 text-sm font-semibold text-[color:var(--dockguard-ink)] transition hover:bg-[color:var(--dockguard-accent-strong)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:py-3"
             >
               {loading ? (
                 <>

@@ -93,7 +93,7 @@ function TabButton({
       onClick={onClick}
       className={`flex-1 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
         active
-          ? "bg-amber-600 text-white"
+          ? "bg-[color:var(--dockguard-accent)] text-[color:var(--dockguard-ink)]"
           : "text-[color:var(--dockguard-muted)] hover:text-[color:var(--dockguard-ink)]"
       }`}
     >
@@ -146,7 +146,7 @@ function SecurityWorkspace({
                   return (
                     <tr
                       key={`${vulnerability.vuln_id}-${index}`}
-                      className="transition-colors hover:bg-amber-50/50 dark:hover:bg-amber-950/10"
+                      className="transition-colors hover:bg-black/5 dark:hover:bg-white/5"
                       style={{
                         boxShadow: `inset 3px 0 0 ${severityPresentation.color}`,
                       }}
@@ -282,7 +282,7 @@ function BuildWorkspace({
                 layers.map((layer) => (
                   <tr
                     key={`${layer.layer_id ?? "layer"}-${layer.index}`}
-                    className="transition-colors hover:bg-amber-50/50 dark:hover:bg-amber-950/10"
+                    className="transition-colors hover:bg-black/5 dark:hover:bg-white/5"
                   >
                     <td className="px-5 py-3 font-mono text-xs text-[color:var(--dockguard-ink)]">
                       #{layer.index + 1}
@@ -293,7 +293,7 @@ function BuildWorkspace({
                     <td className="px-5 py-3 font-mono text-xs text-[color:var(--dockguard-muted)]">
                       {formatBytes(layer.size_bytes)}
                     </td>
-                    <td className="px-5 py-3 font-mono text-xs text-amber-700 dark:text-amber-300">
+                    <td className="px-5 py-3 font-mono text-xs text-[color:var(--dockguard-accent)]">
                       {formatBytes(layer.wasted_bytes)}
                     </td>
                     <td className="px-5 py-3 font-mono text-xs text-[color:var(--dockguard-muted)]">

@@ -56,7 +56,7 @@ export default function ScansPage() {
           ) : scans.length === 0 ? (
             <div className="rounded-[20px] border border-dashed border-[color:var(--dockguard-border)] px-4 py-10 text-center text-sm text-[color:var(--dockguard-muted)]">
               No scans yet. Run one from the{" "}
-              <Link href="/" className="text-amber-700 hover:underline dark:text-amber-300">
+              <Link href="/" className="text-[color:var(--dockguard-accent)] hover:underline">
                 analysis view
               </Link>
               .
@@ -109,14 +109,14 @@ export default function ScansPage() {
                     colSpan={5}
                     className="px-6 py-12 text-center text-sm text-[color:var(--dockguard-muted)]"
                   >
-                    No scans yet. Run one from the <Link href="/" className="text-amber-700 hover:underline dark:text-amber-300">analysis view</Link>.
+                    No scans yet. Run one from the <Link href="/" className="text-[color:var(--dockguard-accent)] hover:underline">analysis view</Link>.
                   </td>
                 </tr>
               ) : (
                 scans.map((scan) => (
                   <tr
                     key={scan.id}
-                    className="cursor-pointer transition-colors hover:bg-amber-50/60 dark:hover:bg-amber-950/10"
+                    className="cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5"
                     onClick={() => router.push(`/scans/${scan.id}`)}
                   >
                     <td className="px-6 py-4 font-mono text-xs text-[color:var(--dockguard-ink)]">

@@ -45,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           aria-current={active ? "page" : undefined}
           className={`${linkClassName} ${
             active
-              ? "border-amber-300 bg-amber-100/80 text-amber-950 shadow-[0_10px_30px_rgba(217,119,6,0.12)] dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
+              ? "border-[color:var(--dockguard-accent-border)] bg-[color:var(--dockguard-accent-soft)] text-[color:var(--dockguard-ink)] shadow-[0_10px_30px_var(--dockguard-accent-glow)]"
               : "border-transparent text-[color:var(--dockguard-muted)] hover:border-[color:var(--dockguard-border)] hover:bg-[color:var(--dockguard-panel)] hover:text-[color:var(--dockguard-ink)]"
           }`}
         >
@@ -54,7 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span
               className={`h-2.5 w-2.5 rounded-full ${
                 active
-                  ? "bg-amber-500 dark:bg-amber-400"
+                  ? "bg-[color:var(--dockguard-accent)]"
                   : "bg-stone-300 dark:bg-stone-700"
               }`}
             />
@@ -87,7 +87,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         target="_blank"
         rel="noreferrer noopener"
         onClick={onNavigate}
-        className={`${linkClassName} border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] text-[color:var(--dockguard-muted)] hover:border-amber-300 hover:text-[color:var(--dockguard-ink)]`}
+        className={`${linkClassName} border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] text-[color:var(--dockguard-muted)] hover:border-[color:var(--dockguard-accent-border)] hover:text-[color:var(--dockguard-ink)]`}
       >
         <span>Grafana</span>
         {!mobile && (
