@@ -1,6 +1,5 @@
 "use client";
 
-import { StatusBadge } from "@/components/StatusBadge";
 import { ScanWorkspace } from "@/components/ScanWorkspace";
 import { SeverityDonut } from "@/components/SeverityDonut";
 import { useActiveScan } from "@/hooks/useActiveScan";
@@ -38,12 +37,6 @@ export default function Dashboard() {
               Scan an image
             </h1>
           </div>
-          {scan && (
-            <div className="flex items-center gap-2">
-              <StatusBadge status={scan.scan_status} />
-              {scan.build_status && <StatusBadge status={scan.build_status} />}
-            </div>
-          )}
         </div>
 
         <form
@@ -100,23 +93,6 @@ export default function Dashboard() {
         <div className="min-w-0">
           {scan ? (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] px-5 py-4">
-                <div className="min-w-0">
-                  <p className="truncate font-mono text-xs text-[color:var(--dockguard-muted)]">
-                    {scan.image_name}
-                  </p>
-                  {scan.image_digest && (
-                    <p className="mt-2 truncate font-mono text-[11px] text-[color:var(--dockguard-muted)]">
-                      {scan.image_digest}
-                    </p>
-                  )}
-                </div>
-                {isActiveScan && (
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--dockguard-muted)]">
-                    {scan.scan_status === "running" ? "Running" : "Queued"}
-                  </p>
-                )}
-              </div>
               <ScanWorkspace key={scan.id} scan={scan} compact />
             </div>
           ) : (

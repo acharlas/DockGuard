@@ -7,7 +7,6 @@ import {
   getSeverityPresentation,
   SEVERITY_ORDER,
 } from "@/lib/constants";
-import { StatusBadge } from "@/components/StatusBadge";
 
 type WorkspaceTab = "security" | "build";
 
@@ -43,10 +42,11 @@ export function ScanWorkspace({
           <h2 className="min-w-0 truncate font-mono text-sm text-[color:var(--dockguard-ink)] sm:text-base">
             {scan.image_name}
           </h2>
-          <div className="flex items-center gap-2">
-            <StatusBadge status={scan.scan_status} />
-            {scan.build_status && <StatusBadge status={scan.build_status} />}
-          </div>
+          {scan.image_digest && (
+            <p className="max-w-full truncate font-mono text-xs text-[color:var(--dockguard-muted)] sm:max-w-sm">
+              {scan.image_digest}
+            </p>
+          )}
         </div>
         <div className="inline-flex w-full rounded-full border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] p-1">
           <TabButton
