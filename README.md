@@ -11,22 +11,14 @@
 
 ```mermaid
 graph TD
-    Browser["Browser\n:3000"] -->|HTTP| Frontend["Next.js 14\nFrontend"]
-    Frontend -->|route handler proxy| Backend["FastAPI\nBackend :8000"]
-    Backend -->|asyncpg| DB[(PostgreSQL 16)]
-    Backend -->|subprocess| Trivy["Trivy CLI\nSecurity analysis"]
-    Backend -->|subprocess + docker.sock\n(local/dev only)| Dive["Dive CLI\nBuild analysis"]
-    Backend -->|SETEX 10min| Redis[(Redis 7)]
-    Backend -->|/metrics| Prometheus["Prometheus\n:9090"]
-    Prometheus --> Grafana["Grafana\n:3001"]
-
-    subgraph CI/CD ["GitHub Actions CI/CD"]
-        Lint["lint"] --> Test["test"] --> Build["build"] --> Sec["trivy scan\nSARIF → GitHub Security"] --> Push["push GHCR\n(main only)"]
-    end
-
-    subgraph IaC ["Terraform (AWS)"]
-        EC2["EC2 + RDS\nuser_data → docker compose up"]
-    end
+    Browser["Browser"] -->|Open dashboard| Frontend["Next.js frontend :3000"]
+    Frontend -->|Proxy /api/v1| Backend["FastAPI backend :8000"]
+    Backend --> DB[(PostgreSQL 16)]
+    Backend --> Redis[(Redis 7 cache)]
+    Backend --> Trivy["Trivy CLI security scan"]
+    Backend --> Dive["Dive CLI build scan (local/dev only)"]
+    Prometheus["Prometheus :9090"] -->|Scrape /metrics| Backend
+    Grafana["Grafana :3001"] -->|Query metrics| Prometheus
 ```
 
 ---

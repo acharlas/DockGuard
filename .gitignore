@@ -50,6 +50,8 @@ terraform.tfvars
 htmlcov/
 .coverage
 coverage.xml
+.pytest_cache/
+.ruff_cache/
 
 # Docker
 docker-compose.override.yml
@@ -59,3 +61,6 @@ CLAUDE.md
 .claude/
 .agents/
 skills-lock.json
+
+# Next.js / frontend tooling
+.swc/
