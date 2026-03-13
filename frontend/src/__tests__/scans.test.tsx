@@ -49,6 +49,9 @@ test("renders history heading", async () => {
 
   expect(screen.getByText("History")).toBeInTheDocument();
   expect(screen.getByText("Scan runs")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByText("2 scans")).toBeInTheDocument();
+  });
 });
 
 test("renders scan rows from API with build status", async () => {

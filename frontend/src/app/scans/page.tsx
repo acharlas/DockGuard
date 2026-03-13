@@ -29,20 +29,22 @@ export default function ScansPage() {
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--dockguard-muted)]">
-            History
-          </p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[color:var(--dockguard-ink)] sm:mt-3 sm:text-4xl">
-            Scan runs
-          </h1>
+    <div className="space-y-4 lg:space-y-8">
+      <section className="rounded-[18px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] p-3 shadow-none sm:rounded-[30px] sm:p-6 sm:shadow-[0_18px_48px_rgba(120,53,15,0.08)]">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--dockguard-muted)]">
+              History
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[color:var(--dockguard-ink)] sm:mt-3 sm:text-4xl">
+              Scan runs
+            </h1>
+          </div>
+          <span className="hidden rounded-full border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-4 py-2 text-sm text-[color:var(--dockguard-muted)] sm:inline-flex">
+            {loading ? "Loading" : `${total} scans`}
+          </span>
         </div>
-        <span className="hidden rounded-full border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] px-4 py-2 text-sm text-[color:var(--dockguard-muted)] sm:inline-flex">
-          {loading ? "Loading" : `${total} scans`}
-        </span>
-      </header>
+      </section>
 
       <section className="overflow-hidden rounded-[24px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] shadow-none sm:rounded-[30px] sm:shadow-[0_18px_48px_rgba(120,53,15,0.08)]">
         <div className="space-y-3 p-4 sm:hidden">
