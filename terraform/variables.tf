@@ -5,15 +5,9 @@ variable "aws_region" {
 }
 
 variable "project" {
-  description = "Project name, used as a prefix for all resource names"
+  description = "Project name, used as a prefix for all demo-stack resource names"
   type        = string
   default     = "dockguard"
-}
-
-variable "environment" {
-  description = "Deployment environment (dev / prod)"
-  type        = string
-  default     = "prod"
 }
 
 variable "instance_type" {
@@ -40,7 +34,7 @@ variable "ssh_public_key" {
 }
 
 variable "ssh_allowed_cidr" {
-  description = "CIDR block allowed to SSH into the EC2 instance (restrict to your IP in production)"
+  description = "CIDR block allowed to SSH into the EC2 instance and demo dashboard"
   type        = string
 }
 
