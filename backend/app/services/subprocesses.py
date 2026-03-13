@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
+_MAX_CAPTURED_STDERR_BYTES = 32 * 1024
 
 # In-process state — requires single uvicorn worker (default).
 # Multi-worker deployments would need an external store for cancellation.
@@ -19,14 +20,41 @@ async def _stream_stderr(
     scan_id: int,
     label: str,
 ) -> bytes:
-    lines = []
+    lines = bytearray()
+    truncated = False
     while True:
         line = await process.stderr.readline()
         if not line:
             break
-        lines.append(line)
-        logger.info("Scan %d [%s]: %s", scan_id, label, line.decode().rstrip())
-    return b"".join(lines)
+        logger.info(
+            "Scan %d [%s]: %s",
+            scan_id,
+            label,
+            line.decode(errors="replace").rstrip(),
+        )
+        remaining = _MAX_CAPTURED_STDERR_BYTES - len(lines)
+        if remaining <= 0:
+            truncated = True
+            continue
+        lines.extend(line[:remaining])
+        truncated = truncated or len(line) > remaining
+    if truncated:
+        lines.extend(b"\n... stderr truncated ...")
+    return bytes(lines)
+
+
+async def _read_stdout(
+    process: asyncio.subprocess.Process,
+    capture_stdout: bool,
+) -> bytes:
+    chunks: list[bytes] = []
+    while True:
+        chunk = await process.stdout.read(4096)
+        if not chunk:
+            break
+        if capture_stdout:
+            chunks.append(chunk)
+    return b"".join(chunks)
 
 
 async def run_logged_command(
@@ -34,6 +62,7 @@ async def run_logged_command(
     label: str,
     *args: str,
     timeout: int,
+    capture_stdout: bool = True,
 ) -> bytes:
     process = await asyncio.create_subprocess_exec(
         *args,
@@ -44,7 +73,7 @@ async def run_logged_command(
     try:
         stdout, stderr = await asyncio.wait_for(
             asyncio.gather(
-                process.stdout.read(),
+                _read_stdout(process, capture_stdout),
                 _stream_stderr(process, scan_id, label),
             ),
             timeout=timeout,

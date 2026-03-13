@@ -43,6 +43,7 @@ services:
       CORS_ORIGINS: '["http://localhost:3000"]'
       REDIS_URL: redis://redis:6379/0
       BUILD_TIMEOUT: 600
+      ENABLE_BUILD_ANALYSIS: "true"
       MAX_PENDING_SCANS: 25
     depends_on:
       postgres:

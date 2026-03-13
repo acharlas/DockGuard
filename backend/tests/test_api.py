@@ -1,4 +1,5 @@
 import asyncio
+import copy
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
@@ -410,3 +411,46 @@ async def test_stats_aggregates_completed_scans(
     assert len(data["top_cves"]) == 4
     assert data["top_cves"][0]["count"] == 3
     assert data["top_images"][0] == {"image_name": "nginx:latest", "scan_count": 2}
+
+
+@pytest.mark.asyncio
+async def test_stats_top_cves_include_all_completed_scans(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    trivy_report,
+):
+    repeated_report = copy.deepcopy(trivy_report)
+    repeated_report["Results"][0]["Vulnerabilities"] = [
+        {
+            "VulnerabilityID": "CVE-2026-0001",
+            "PkgName": "openssl",
+            "InstalledVersion": "1.0.0",
+            "FixedVersion": "1.0.1",
+            "Severity": "HIGH",
+            "Title": "Repeated across all scans",
+        }
+    ]
+
+    for index in range(101):
+        db_session.add(
+            ScanResult(
+                image_name=f"image-{index}:latest",
+                scan_status="completed",
+                summary={
+                    "critical": 0,
+                    "high": 1,
+                    "medium": 0,
+                    "low": 0,
+                    "unknown": 0,
+                },
+                raw_report=copy.deepcopy(repeated_report),
+            )
+        )
+    await db_session.commit()
+
+    resp = await client.get("/api/v1/stats")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["top_cves"][0]["vuln_id"] == "CVE-2026-0001"
+    assert data["top_cves"][0]["count"] == 101

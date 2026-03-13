@@ -10,6 +10,20 @@ from app.models.scan import BuildStatus
 from app.services.subprocesses import run_logged_command
 
 _MAX_REPORTED_LAYERS = 12
+_MISSING_LOCAL_IMAGE_TOKENS = (
+    "no such image",
+    "image not found",
+    "could not find image",
+    "reference does not exist",
+)
+_IMAGE_PULL_FAILURE_TOKENS = (
+    "pull access denied",
+    "requested access to the resource is denied",
+    "manifest unknown",
+    "name unknown",
+    "repository does not exist",
+)
+BUILD_ANALYSIS_DISABLED_REASON = "build_analysis_disabled"
 logger = logging.getLogger(__name__)
 
 
@@ -189,36 +203,57 @@ def _build_contributor_rows(
     return contributors
 
 
-async def run_dive(scan_id: int, image_name: str) -> dict:
+async def _run_dive_json_file(scan_id: int, image_name: str, output_path: str) -> dict:
     await run_logged_command(
         scan_id,
-        "docker",
-        "docker",
-        "pull",
+        "dive",
+        "dive",
         image_name,
+        "-j",
+        output_path,
         timeout=settings.build_timeout,
+        capture_stdout=False,
+    )
+    with open(output_path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _should_retry_after_pull(exc: RuntimeError) -> bool:
+    message = str(exc).lower()
+    return "dive exited with code" in message and any(
+        token in message for token in _MISSING_LOCAL_IMAGE_TOKENS
     )
 
+
+async def run_dive(scan_id: int, image_name: str) -> dict:
     fd, output_path = tempfile.mkstemp(prefix="dockguard-dive-", suffix=".json")
     os.close(fd)
     try:
+        try:
+            return await _run_dive_json_file(scan_id, image_name, output_path)
+        except RuntimeError as exc:
+            if not _should_retry_after_pull(exc):
+                raise
+
         await run_logged_command(
             scan_id,
-            "dive",
-            "dive",
+            "docker",
+            "docker",
+            "pull",
             image_name,
-            "-j",
-            output_path,
             timeout=settings.build_timeout,
+            capture_stdout=False,
         )
-        with open(output_path, encoding="utf-8") as handle:
-            return json.load(handle)
+        return await _run_dive_json_file(scan_id, image_name, output_path)
     finally:
         if os.path.exists(output_path):
             os.unlink(output_path)
 
 
 def log_build_runtime_status() -> None:
+    if not settings.enable_build_analysis:
+        logger.info("Build analysis disabled by configuration")
+        return
     if shutil.which("dive") is None:
         logger.warning("Build analysis unavailable: dive binary is missing")
         return
@@ -355,7 +390,7 @@ def parse_dive_report(report: dict | None) -> tuple[dict | None, dict | None]:
         (layer for layer in layers if (layer.get("wasted_bytes") or 0) > 0),
         key=lambda layer: layer.get("wasted_bytes") or 0,
         reverse=True,
-    )[:_MAX_REPORTED_LAYERS]
+    )
     inefficient_layer_count = len(meaningful_layers) or len(contributor_rows) or None
 
     if wasted_percent is None and image_size and wasted_bytes is not None:
@@ -373,7 +408,8 @@ def parse_dive_report(report: dict | None) -> tuple[dict | None, dict | None]:
         return None, None
 
     reduced_report = {
-        "layers": meaningful_layers or contributor_rows[:_MAX_REPORTED_LAYERS]
+        "layers": meaningful_layers[:_MAX_REPORTED_LAYERS]
+        or contributor_rows[:_MAX_REPORTED_LAYERS]
     }
     return summary, reduced_report
 
@@ -387,12 +423,17 @@ def _build_failure_reason(exc: Exception) -> str:
         or "docker: not found" in message
     ):
         return "docker_unavailable"
-    if "pull access denied" in message or "not found" in message:
+    if any(token in message for token in _IMAGE_PULL_FAILURE_TOKENS):
         return "image_pull_failed"
     return "dive_failed"
 
 
 async def analyze_image_build(scan_id: int, image_name: str) -> BuildAnalysisResult:
+    if not settings.enable_build_analysis:
+        return BuildAnalysisResult(
+            status=BuildStatus.UNAVAILABLE,
+            failure_reason=BUILD_ANALYSIS_DISABLED_REASON,
+        )
     try:
         report = await run_dive(scan_id, image_name)
         summary, reduced_report = parse_dive_report(report)
