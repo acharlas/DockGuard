@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { getScan, ScanDetail } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
+import { ScanInsightPanel } from "@/components/ScanInsightPanel";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SkeletonDetailPage } from "@/components/Skeleton";
-import { ScanWorkspace } from "@/components/ScanWorkspace";
-import { SeverityDonut } from "@/components/SeverityDonut";
+import { ScanWorkspace, WorkspaceTab } from "@/components/ScanWorkspace";
 
 export default function ScanDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("security");
   const [scan, setScan] = useState<ScanDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,33 +36,42 @@ export default function ScanDetailPage() {
   }
 
   return (
-    <div className="space-y-6 lg:space-y-8">
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="rounded-[30px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] p-5 shadow-[0_18px_48px_rgba(120,53,15,0.08)] sm:p-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--dockguard-muted)]">
-            Analysis
-          </p>
-          <h1 className="mt-3 break-all text-3xl font-semibold tracking-tight text-[color:var(--dockguard-ink)] sm:text-4xl">
-            {scan.image_name}
-          </h1>
+    <div className="space-y-4 lg:space-y-8">
+      <section className="rounded-[18px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] p-3 shadow-none sm:rounded-[30px] sm:p-6 sm:shadow-[0_18px_48px_rgba(120,53,15,0.08)]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--dockguard-muted)]">
+          Analysis
+        </p>
+        <h1 className="mt-3 break-all text-2xl font-semibold tracking-tight text-[color:var(--dockguard-ink)] sm:text-4xl">
+          {scan.image_name}
+        </h1>
 
-          <div className="mt-5 flex flex-wrap items-center gap-2">
-            <StatusBadge status={scan.scan_status} />
-            {scan.build_status && <StatusBadge status={scan.build_status} />}
-          </div>
-
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetaCard label="Submitted" value={formatDateTime(scan.created_at)} />
-            <MetaCard label="Started" value={formatDateTime(scan.started_at)} />
-            <MetaCard label="Completed" value={formatDateTime(scan.completed_at)} />
-            <MetaCard label="Digest" value={scan.image_digest ?? "—"} mono />
-          </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2 sm:mt-5">
+          <StatusBadge status={scan.scan_status} />
+          {scan.build_status && <StatusBadge status={scan.build_status} />}
         </div>
 
-        <SeverityDonut summary={scan.summary} />
+        <div className="mt-5 grid gap-3 sm:mt-6 sm:gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetaCard label="Submitted" value={formatDateTime(scan.created_at)} />
+          <MetaCard label="Started" value={formatDateTime(scan.started_at)} />
+          <MetaCard label="Completed" value={formatDateTime(scan.completed_at)} />
+          <MetaCard label="Digest" value={scan.image_digest ?? "—"} mono />
+        </div>
       </section>
 
-      <ScanWorkspace key={scan.id} scan={scan} />
+      <section className="md:grid md:gap-6 xl:grid-cols-[minmax(0,1.35fr)_320px] xl:items-start">
+        <div className="min-w-0">
+          <ScanWorkspace
+            key={scan.id}
+            scan={scan}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+        </div>
+
+        <div className="hidden md:block">
+          <ScanInsightPanel activeTab={activeTab} scan={scan} />
+        </div>
+      </section>
     </div>
   );
 }

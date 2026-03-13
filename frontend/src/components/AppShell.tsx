@@ -45,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           aria-current={active ? "page" : undefined}
           className={`${linkClassName} ${
             active
-              ? "border-amber-300 bg-amber-100/80 text-amber-950 shadow-[0_10px_30px_rgba(217,119,6,0.12)] dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
+              ? "border-[color:var(--dockguard-accent-border)] bg-[color:var(--dockguard-accent-soft)] text-[color:var(--dockguard-ink)] shadow-[0_10px_30px_var(--dockguard-accent-glow)]"
               : "border-transparent text-[color:var(--dockguard-muted)] hover:border-[color:var(--dockguard-border)] hover:bg-[color:var(--dockguard-panel)] hover:text-[color:var(--dockguard-ink)]"
           }`}
         >
@@ -54,7 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span
               className={`h-2.5 w-2.5 rounded-full ${
                 active
-                  ? "bg-amber-500 dark:bg-amber-400"
+                  ? "bg-[color:var(--dockguard-accent)]"
                   : "bg-stone-300 dark:bg-stone-700"
               }`}
             />
@@ -87,7 +87,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         target="_blank"
         rel="noreferrer noopener"
         onClick={onNavigate}
-        className={`${linkClassName} border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] text-[color:var(--dockguard-muted)] hover:border-amber-300 hover:text-[color:var(--dockguard-ink)]`}
+        className={`${linkClassName} border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] text-[color:var(--dockguard-muted)] hover:border-[color:var(--dockguard-accent-border)] hover:text-[color:var(--dockguard-ink)]`}
       >
         <span>Grafana</span>
         {!mobile && (
@@ -164,7 +164,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 aria-label="Close navigation"
                 onClick={() => setMobileOpen(false)}
               />
-              <div className="absolute left-4 top-4 flex w-[min(18rem,calc(100vw-2rem))] flex-col gap-6 rounded-[28px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] p-5 shadow-[0_24px_80px_rgba(23,12,7,0.35)]">
+              <div className="absolute inset-x-0 top-0 flex h-[66vh] flex-col gap-6 rounded-b-[32px] border-b border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] p-5 shadow-[0_24px_80px_rgba(23,12,7,0.35)]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[color:var(--dockguard-muted)]">
@@ -202,10 +202,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     onNavigate: () => setMobileOpen(false),
                   })}
                 </nav>
-                {renderGrafanaLink({
-                  mobile: true,
-                  onNavigate: () => setMobileOpen(false),
-                })}
+                <div className="mt-auto">
+                  {renderGrafanaLink({
+                    mobile: true,
+                    onNavigate: () => setMobileOpen(false),
+                  })}
+                </div>
               </div>
             </div>
           )}

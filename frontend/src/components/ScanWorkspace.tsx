@@ -1,29 +1,28 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { BuildLayer, BuildSummary, ScanDetail, Vulnerability } from "@/lib/api";
 import { formatBytes, formatPercent, formatScore } from "@/lib/format";
 import {
   getSeverityPresentation,
   SEVERITY_ORDER,
 } from "@/lib/constants";
-import { StatusBadge } from "@/components/StatusBadge";
 
-type WorkspaceTab = "security" | "build";
+export type WorkspaceTab = "security" | "build";
 
 type ScanWorkspaceProps = {
   scan: ScanDetail;
   compact?: boolean;
-  initialTab?: WorkspaceTab;
+  activeTab: WorkspaceTab;
+  onTabChange: (tab: WorkspaceTab) => void;
 };
 
 export function ScanWorkspace({
   scan,
   compact = false,
-  initialTab = "security",
+  activeTab,
+  onTabChange,
 }: ScanWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialTab);
-
   const vulnerabilities = useMemo(
     () =>
       [...scan.vulnerabilities].sort(
@@ -37,32 +36,39 @@ export function ScanWorkspace({
   const buildSummary = scan.build?.summary;
 
   return (
-    <section className="overflow-hidden rounded-[30px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] shadow-[0_24px_80px_rgba(120,53,15,0.08)]">
-      <div className="flex flex-col gap-4 border-b border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-5 py-5 sm:px-7">
+    <section className="overflow-hidden rounded-[24px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] shadow-none sm:rounded-[30px] sm:shadow-[0_24px_80px_rgba(120,53,15,0.08)]">
+      <div className="flex flex-col gap-4 border-b border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-4 py-4 sm:px-7 sm:py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="min-w-0 truncate font-mono text-sm text-[color:var(--dockguard-ink)] sm:text-base">
             {scan.image_name}
           </h2>
-          <div className="flex items-center gap-2">
-            <StatusBadge status={scan.scan_status} />
-            {scan.build_status && <StatusBadge status={scan.build_status} />}
-          </div>
+          {scan.image_digest && (
+            <p className="max-w-full truncate font-mono text-xs text-[color:var(--dockguard-muted)] sm:max-w-sm">
+              {scan.image_digest}
+            </p>
+          )}
         </div>
         <div className="inline-flex w-full rounded-full border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] p-1">
           <TabButton
             label="Security"
             active={activeTab === "security"}
-            onClick={() => setActiveTab("security")}
+            onClick={() => onTabChange("security")}
           />
           <TabButton
             label="Build"
             active={activeTab === "build"}
-            onClick={() => setActiveTab("build")}
+            onClick={() => onTabChange("build")}
           />
         </div>
       </div>
 
-      <div className={compact ? "p-5 sm:p-7" : "p-6 sm:p-8"}>
+      <div
+        className={
+          compact
+            ? "px-5 pb-5 pt-3 sm:px-7 sm:pb-7 sm:pt-4"
+            : "px-6 pb-6 pt-4 sm:px-8 sm:pb-8 sm:pt-5"
+        }
+      >
         {activeTab === "security" ? (
           <SecurityWorkspace vulnerabilities={vulnerabilities} />
         ) : (
@@ -93,7 +99,7 @@ function TabButton({
       onClick={onClick}
       className={`flex-1 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
         active
-          ? "bg-amber-600 text-white"
+          ? "bg-[color:var(--dockguard-accent)] text-[color:var(--dockguard-ink)]"
           : "text-[color:var(--dockguard-muted)] hover:text-[color:var(--dockguard-ink)]"
       }`}
     >
@@ -108,9 +114,9 @@ function SecurityWorkspace({
   vulnerabilities: Vulnerability[];
 }) {
   return (
-    <div className="space-y-7">
-      <div className="overflow-hidden rounded-[24px] border border-[color:var(--dockguard-border)]">
-        <div className="border-b border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-5 py-4">
+    <div className="space-y-5 sm:space-y-7 md:space-y-0">
+      <div className="overflow-x-auto sm:overflow-hidden sm:rounded-[24px] sm:border sm:border-[color:var(--dockguard-border)]">
+        <div className="px-1 pb-3 sm:border-b sm:border-[color:var(--dockguard-border)] sm:bg-[color:var(--dockguard-panel)] sm:px-5 sm:py-4">
           <h3 className="text-lg font-semibold text-[color:var(--dockguard-ink)]">
             Vulnerabilities ({vulnerabilities.length})
           </h3>
@@ -146,7 +152,7 @@ function SecurityWorkspace({
                   return (
                     <tr
                       key={`${vulnerability.vuln_id}-${index}`}
-                      className="transition-colors hover:bg-amber-50/50 dark:hover:bg-amber-950/10"
+                      className="transition-colors hover:bg-black/5 dark:hover:bg-white/5"
                       style={{
                         boxShadow: `inset 3px 0 0 ${severityPresentation.color}`,
                       }}
@@ -225,33 +231,33 @@ function BuildWorkspace({
   }
 
   return (
-    <div className="space-y-7">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <MetricCard
+    <div className="space-y-5 sm:space-y-7 md:space-y-0">
+      <div className="grid gap-3 md:hidden">
+        <BuildMetricCard
           label="Image Size"
           value={formatBytes(buildSummary.image_size_bytes)}
         />
-        <MetricCard
+        <BuildMetricCard
           label="Wasted Space"
           value={formatBytes(buildSummary.wasted_bytes)}
         />
-        <MetricCard
+        <BuildMetricCard
           label="Efficiency Score"
           value={formatScore(buildSummary.efficiency_score)}
         />
-        <MetricCard
+        <BuildMetricCard
           label="Wasted Percent"
           value={formatPercent(buildSummary.wasted_percent)}
         />
-        <MetricCard label="Layers" value={String(buildSummary.layer_count ?? "—")} />
-        <MetricCard
+        <BuildMetricCard label="Layers" value={String(buildSummary.layer_count ?? "—")} />
+        <BuildMetricCard
           label="Waste Contributors"
           value={String(buildSummary.inefficient_layer_count ?? "—")}
         />
       </div>
 
-      <div className="overflow-hidden rounded-[24px] border border-[color:var(--dockguard-border)]">
-        <div className="border-b border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-5 py-4">
+      <div className="overflow-x-auto sm:overflow-hidden sm:rounded-[24px] sm:border sm:border-[color:var(--dockguard-border)]">
+        <div className="px-1 pb-3 sm:border-b sm:border-[color:var(--dockguard-border)] sm:bg-[color:var(--dockguard-panel)] sm:px-5 sm:py-4">
           <h3 className="text-lg font-semibold text-[color:var(--dockguard-ink)]">
             Highest waste contributors
           </h3>
@@ -282,7 +288,7 @@ function BuildWorkspace({
                 layers.map((layer) => (
                   <tr
                     key={`${layer.layer_id ?? "layer"}-${layer.index}`}
-                    className="transition-colors hover:bg-amber-50/50 dark:hover:bg-amber-950/10"
+                    className="transition-colors hover:bg-black/5 dark:hover:bg-white/5"
                   >
                     <td className="px-5 py-3 font-mono text-xs text-[color:var(--dockguard-ink)]">
                       #{layer.index + 1}
@@ -293,7 +299,7 @@ function BuildWorkspace({
                     <td className="px-5 py-3 font-mono text-xs text-[color:var(--dockguard-muted)]">
                       {formatBytes(layer.size_bytes)}
                     </td>
-                    <td className="px-5 py-3 font-mono text-xs text-amber-700 dark:text-amber-300">
+                    <td className="px-5 py-3 font-mono text-xs text-[color:var(--dockguard-accent)]">
                       {formatBytes(layer.wasted_bytes)}
                     </td>
                     <td className="px-5 py-3 font-mono text-xs text-[color:var(--dockguard-muted)]">
@@ -313,7 +319,7 @@ function BuildWorkspace({
   );
 }
 
-function MetricCard({
+export function BuildMetricCard({
   label,
   value,
   accent = "text-[color:var(--dockguard-ink)]",
@@ -323,7 +329,7 @@ function MetricCard({
   accent?: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-5 py-5">
+    <div className="rounded-[18px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-4 py-4 sm:rounded-[22px] sm:px-5 sm:py-5">
       <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--dockguard-muted)]">
         {label}
       </p>

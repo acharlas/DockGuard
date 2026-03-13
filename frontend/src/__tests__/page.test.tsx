@@ -152,8 +152,10 @@ test("switches to the build tab and renders build metrics", async () => {
   await user.click(screen.getAllByRole("button", { name: "Build" })[0]);
 
   expect(screen.getByText("Highest waste contributors")).toBeInTheDocument();
-  expect(screen.getByText("Wasted Space")).toBeInTheDocument();
+  expect(screen.getByLabelText("Build efficiency distribution")).toBeInTheDocument();
+  expect(screen.getAllByText("Image Size").length).toBeGreaterThan(0);
   expect(screen.getByText("RUN apk add curl bash")).toBeInTheDocument();
+  expect(screen.queryByText("Issues")).not.toBeInTheDocument();
 });
 
 test("shows queue message when scan queue is full", async () => {
@@ -277,7 +279,7 @@ test("renders cached completed scans without starting a poll loop", async () => 
   expect(screen.queryByRole("button", { name: /^cancel$/i })).not.toBeInTheDocument();
 });
 
-test("shows queued label for pending scans without started_at", async () => {
+test("renders pending scan workspace without started_at", async () => {
   const user = userEvent.setup();
 
   global.fetch = jest.fn((url: string, options?: RequestInit) => {
@@ -296,8 +298,9 @@ test("shows queued label for pending scans without started_at", async () => {
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
 
   await waitFor(() => {
-    expect(screen.getByText("Queued")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^cancel$/i })).toBeInTheDocument();
   });
+  expect(screen.getByText("nginx:latest")).toBeInTheDocument();
 });
 
 test("ignores stale poll responses after cancel and restart", async () => {
@@ -436,7 +439,7 @@ test("keeps polling when running cancel is still settling", async () => {
   await user.click(screen.getByRole("button", { name: /^cancel$/i }));
 
   await waitFor(() => {
-    expect(screen.getAllByText("cancelled").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /^cancel$/i })).not.toBeInTheDocument();
   });
   expect(scanPolls).toBeGreaterThanOrEqual(2);
 });

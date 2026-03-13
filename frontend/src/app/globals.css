@@ -3,21 +3,31 @@
 @tailwind utilities;
 
 :root {
-  --dockguard-bg: #f4ede2;
+  --dockguard-bg: #f5f5f5;
   --dockguard-surface: #ffffff;
-  --dockguard-panel: #fff6ed;
-  --dockguard-border: rgba(194, 89, 30, 0.2);
-  --dockguard-muted: #8b5e3c;
-  --dockguard-ink: #14100d;
+  --dockguard-panel: #f8f8f8;
+  --dockguard-border: rgba(23, 23, 23, 0.09);
+  --dockguard-muted: #5a5a5a;
+  --dockguard-ink: #171717;
+  --dockguard-accent: #f97316;
+  --dockguard-accent-strong: #6b3a17;
+  --dockguard-accent-soft: rgba(249, 115, 22, 0.06);
+  --dockguard-accent-border: rgba(107, 58, 23, 0.35);
+  --dockguard-accent-glow: rgba(249, 115, 22, 0.12);
 }
 
 .dark {
-  --dockguard-bg: #090604;
-  --dockguard-surface: #110c08;
-  --dockguard-panel: #1a120c;
-  --dockguard-border: rgba(249, 115, 22, 0.18);
-  --dockguard-muted: #d7b392;
-  --dockguard-ink: #fff7ef;
+  --dockguard-bg: #171717;
+  --dockguard-surface: #111111;
+  --dockguard-panel: #151515;
+  --dockguard-border: rgba(255, 255, 255, 0.08);
+  --dockguard-muted: #d4d4d4;
+  --dockguard-ink: #fafafa;
+  --dockguard-accent: #f97316;
+  --dockguard-accent-strong: #f97316;
+  --dockguard-accent-soft: rgba(46, 33, 23, 0.72);
+  --dockguard-accent-border: rgba(107, 58, 23, 0.55);
+  --dockguard-accent-glow: rgba(249, 115, 22, 0.18);
 }
 
 html {
@@ -28,16 +38,42 @@ body {
   min-height: 100vh;
   color: var(--dockguard-ink);
   background-image:
-    radial-gradient(circle at top left, rgba(249, 115, 22, 0.16), transparent 28%),
-    radial-gradient(circle at 82% 4%, rgba(251, 146, 60, 0.12), transparent 18%),
-    linear-gradient(180deg, #fffaf4 0%, #f7efe5 46%, #efe1d0 100%);
+    radial-gradient(circle at 12% 10%, rgba(249, 115, 22, 0.05), transparent 24%),
+    linear-gradient(180deg, #ffffff 0%, #f4f4f4 100%),
+    repeating-linear-gradient(
+      90deg,
+      rgba(23, 23, 23, 0.025) 0,
+      rgba(23, 23, 23, 0.025) 1px,
+      transparent 1px,
+      transparent 72px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(23, 23, 23, 0.02) 0,
+      rgba(23, 23, 23, 0.02) 1px,
+      transparent 1px,
+      transparent 72px
+    );
 }
 
 .dark body {
   background-image:
-    radial-gradient(circle at top left, rgba(249, 115, 22, 0.15), transparent 20%),
-    radial-gradient(circle at 86% 10%, rgba(194, 65, 12, 0.16), transparent 18%),
-    linear-gradient(180deg, #050302 0%, #0a0604 46%, #140d09 100%);
+    radial-gradient(circle at 12% 10%, rgba(107, 58, 23, 0.48), transparent 22%),
+    linear-gradient(180deg, #101010 0%, #171717 100%),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.03) 0,
+      rgba(255, 255, 255, 0.03) 1px,
+      transparent 1px,
+      transparent 72px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.02) 0,
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 1px,
+      transparent 72px
+    );
 }
 
 code,
@@ -47,7 +83,7 @@ pre,
 }
 
 ::selection {
-  background: rgba(217, 119, 6, 0.18);
+  background: var(--dockguard-accent-soft);
 }
 
 @keyframes shimmer {
@@ -60,12 +96,12 @@ pre,
 }
 
 .skeleton-shimmer {
-  background: linear-gradient(90deg, #f1dfcc 25%, #fff8ef 50%, #f1dfcc 75%);
+  background: linear-gradient(90deg, #eef1f5 25%, #ffffff 50%, #eef1f5 75%);
   background-size: 800px 100%;
   animation: shimmer 1.4s ease-in-out infinite;
 }
 
 .dark .skeleton-shimmer {
-  background: linear-gradient(90deg, #140d09 25%, #26180f 50%, #140d09 75%);
+  background: linear-gradient(90deg, #0b1016 25%, #161c24 50%, #0b1016 75%);
   background-size: 800px 100%;
 }
