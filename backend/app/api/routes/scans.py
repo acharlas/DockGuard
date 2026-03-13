@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import defer, load_only
+from sqlalchemy.orm import defer
 
 from app.config import settings
 from app.db.session import get_db
@@ -326,19 +326,14 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
             2,
         )
 
+    cve_map: dict[str, dict] = {}
     cve_result = await db.execute(
-        select(ScanResult)
-        .options(load_only(ScanResult.raw_report))
+        select(ScanResult.raw_report)
         .where(ScanResult.scan_status == ScanStatus.COMPLETED)
         .where(ScanResult.raw_report.is_not(None))
-        .order_by(ScanResult.completed_at.desc())
-        .limit(settings.stats_recent_scan_limit)
     )
-    cve_scans = cve_result.scalars().all()
-
-    cve_map: dict[str, dict] = {}
-    for scan in cve_scans:
-        for vuln in parse_vulnerabilities(scan.raw_report):
+    for raw_report in cve_result.scalars():
+        for vuln in parse_vulnerabilities(raw_report):
             vid = vuln["vuln_id"]
             if vid not in cve_map:
                 cve_map[vid] = {

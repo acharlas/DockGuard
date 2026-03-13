@@ -1,9 +1,14 @@
+# Demo-only stack naming stays fixed to avoid turning deployment mode into a fake input.
+locals {
+  deployment_name = "${var.project}-demo"
+}
+
 # ── VPC ──────────────────────────────────────────────────────────────────────
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_hostnames = true
 
-  tags = { Name = "${var.project}-${var.environment}" }
+  tags = { Name = local.deployment_name }
 }
 
 # ── Subnets ───────────────────────────────────────────────────────────────────
@@ -58,22 +63,22 @@ resource "aws_route_table_association" "public" {
 }
 
 # ── Security groups ───────────────────────────────────────────────────────────
-# EC2: inbound HTTP (80) and SSH (22); full egress
+# EC2: inbound dashboard access and SSH from the operator CIDR; full egress
 resource "aws_security_group" "ec2" {
   name        = "${var.project}-ec2"
   description = "DockGuard application server"
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description = "HTTP"
+    description = "Dashboard access (demo only)"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.ssh_allowed_cidr]
   }
 
   ingress {
-    description = "SSH — restrict to your IP in production"
+    description = "SSH access for the demo operator CIDR"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -109,18 +114,19 @@ resource "aws_security_group" "rds" {
 
 # ── RDS PostgreSQL ─────────────────────────────────────────────────────────────
 resource "aws_db_subnet_group" "main" {
-  name       = "${var.project}-${var.environment}"
+  name       = local.deployment_name
   subnet_ids = [aws_subnet.private_a.id, aws_subnet.private_b.id]
 
   tags = { Name = "${var.project}-db-subnet-group" }
 }
 
 resource "aws_db_instance" "postgres" {
-  identifier        = "${var.project}-${var.environment}"
+  identifier        = local.deployment_name
   engine            = "postgres"
   engine_version    = "16"
   instance_class    = var.db_instance_class
   allocated_storage = 20
+  storage_encrypted = true
 
   db_name  = "dockguard"
   username = "dockguard"
@@ -129,8 +135,9 @@ resource "aws_db_instance" "postgres" {
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
 
-  # Keep backups for 7 days; skip final snapshot in dev/CI to keep destroy fast
+  # Demo-only stack: keep backups, but do not pretend this sample has a prod mode.
   backup_retention_period = 7
+  deletion_protection     = false
   skip_final_snapshot     = true
 
   tags = { Name = "${var.project}-postgres" }
@@ -138,7 +145,7 @@ resource "aws_db_instance" "postgres" {
 
 # ── EC2 key pair ──────────────────────────────────────────────────────────────
 resource "aws_key_pair" "main" {
-  key_name   = "${var.project}-${var.environment}"
+  key_name   = local.deployment_name
   public_key = var.ssh_public_key
 }
 

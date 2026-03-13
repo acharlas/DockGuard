@@ -244,7 +244,7 @@ async def _run_trivy(scan_id: int, image_name: str) -> dict:
         image_name,
         timeout=settings.trivy_timeout,
     )
-    return json.loads(stdout.decode())
+    return json.loads(stdout)
 
 
 async def _execute_scan(scan_id: int) -> None:

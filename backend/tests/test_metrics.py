@@ -49,7 +49,9 @@ async def test_metrics_recorded_after_successful_scan(db_session):
     )
 
     fake_process = AsyncMock()
-    fake_process.stdout.read = AsyncMock(return_value=json.dumps(trivy_report).encode())
+    fake_process.stdout.read = AsyncMock(
+        side_effect=[json.dumps(trivy_report).encode(), b""]
+    )
     fake_process.stderr.readline = AsyncMock(return_value=b"")
     fake_process.returncode = 0
     fake_process.kill = MagicMock()

@@ -44,7 +44,16 @@ export function useActiveScan() {
         if (err instanceof DOMException && err.name === "AbortError") {
           return;
         }
-        setError("Failed to fetch scan status");
+        setError(
+          getApiErrorMessage(
+            err,
+            "Failed to fetch scan status. Check backend availability.",
+            {
+              notFoundMessage: "Failed to fetch scan status. The scan no longer exists.",
+              unavailableMessage: "Failed to fetch scan status. Backend unavailable.",
+            }
+          )
+        );
         setActiveScanId(null);
         setLoading(false);
       }
@@ -84,7 +93,16 @@ export function useActiveScan() {
       if (err instanceof ApiError && err.status === 429) {
         setError(err.detail ?? "Scan queue is full. Try again later.");
       } else {
-        setError("Failed to start scan. Check the image name.");
+        setError(
+          getApiErrorMessage(
+            err,
+            "Failed to start scan. Check backend availability.",
+            {
+              invalidInputMessage: "Failed to start scan. Check the image name.",
+              unavailableMessage: "Failed to start scan. Backend unavailable.",
+            }
+          )
+        );
       }
       setLoading(false);
     }
@@ -117,8 +135,9 @@ export function useActiveScan() {
         try {
           const latest = await getScan(scanId);
           setScan(latest);
-          setLoading(false);
-          if (isActiveScanStatus(latest.scan_status)) {
+          const stillActive = isActiveScanStatus(latest.scan_status);
+          setLoading(stillActive);
+          if (stillActive) {
             setActiveScanId(scanId);
           }
           return;
@@ -128,7 +147,11 @@ export function useActiveScan() {
       }
 
       setActiveScanId(scanId);
-      setError("Failed to cancel scan.");
+      setError(
+        getApiErrorMessage(err, "Failed to cancel scan. Check backend availability.", {
+          unavailableMessage: "Failed to cancel scan. Backend unavailable.",
+        })
+      );
     }
   }, [scan]);
 
@@ -142,4 +165,33 @@ export function useActiveScan() {
     runScan,
     cancelActiveScan,
   };
+}
+
+function getApiErrorMessage(
+  err: unknown,
+  fallback: string,
+  {
+    invalidInputMessage,
+    notFoundMessage,
+    unavailableMessage,
+  }: {
+    invalidInputMessage?: string;
+    notFoundMessage?: string;
+    unavailableMessage?: string;
+  } = {}
+) {
+  if (!(err instanceof ApiError)) {
+    return fallback;
+  }
+
+  if (err.status === 404 && notFoundMessage) {
+    return notFoundMessage;
+  }
+  if (err.status === 422 && invalidInputMessage) {
+    return invalidInputMessage;
+  }
+  if (err.status === 502 && unavailableMessage) {
+    return unavailableMessage;
+  }
+  return err.detail ?? fallback;
 }

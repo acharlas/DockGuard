@@ -6,6 +6,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.config import settings
 from app.db.session import get_db
 from app.main import app
 from app.models.scan import Base
@@ -65,6 +66,8 @@ async def client(session_factory):
 
 @pytest.fixture(autouse=True)
 def reset_global_state():
+    original_enable_build_analysis = settings.enable_build_analysis
+
     def discard_background_task(coro):
         coro.close()
         return None
@@ -73,8 +76,10 @@ def reset_global_state():
         "app.api.routes.scans.create_background_task",
         side_effect=discard_background_task,
     ):
+        settings.enable_build_analysis = True
         cache_module._client = None
         subprocesses_module.running_processes.clear()
         yield
+        settings.enable_build_analysis = original_enable_build_analysis
         cache_module._client = None
         subprocesses_module.running_processes.clear()

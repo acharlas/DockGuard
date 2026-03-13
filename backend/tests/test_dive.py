@@ -4,14 +4,20 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.config import settings
 from app.models.scan import BuildStatus
-from app.services.dive import analyze_image_build, parse_dive_report, run_dive
+from app.services.dive import (
+    BUILD_ANALYSIS_DISABLED_REASON,
+    analyze_image_build,
+    parse_dive_report,
+    run_dive,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
 @pytest.mark.asyncio
-async def test_run_dive_uses_docker_pull_and_dive_json_file():
+async def test_run_dive_reads_local_image_without_pulling():
     dive_report = json.loads((FIXTURES / "dive_nginx.json").read_text())
 
     async def fake_run_logged_command(
@@ -19,9 +25,8 @@ async def test_run_dive_uses_docker_pull_and_dive_json_file():
         _label: str,
         *args: str,
         timeout: int,
+        capture_stdout: bool = True,
     ):
-        if args[0] == "docker":
-            return b"pulled"
         output_path = args[-1]
         Path(output_path).write_text(json.dumps(dive_report), encoding="utf-8")
         return b""
@@ -34,6 +39,40 @@ async def test_run_dive_uses_docker_pull_and_dive_json_file():
 
     assert report["image"]["sizeBytes"] == 205000000
     assert report["layers"][1]["wastedBytes"] == 8200000
+
+
+@pytest.mark.asyncio
+async def test_run_dive_pulls_only_when_image_is_missing_locally():
+    dive_report = json.loads((FIXTURES / "dive_nginx.json").read_text())
+    calls: list[str] = []
+
+    async def fake_run_logged_command(
+        _scan_id: int,
+        _label: str,
+        *args: str,
+        timeout: int,
+        capture_stdout: bool = True,
+    ):
+        assert timeout > 0
+        calls.append(args[0])
+        if args[0] == "docker":
+            return b"pulled"
+
+        if calls.count("dive") == 1:
+            raise RuntimeError("dive exited with code 1: no such image")
+
+        output_path = args[-1]
+        Path(output_path).write_text(json.dumps(dive_report), encoding="utf-8")
+        return b""
+
+    with patch(
+        "app.services.dive.run_logged_command",
+        side_effect=fake_run_logged_command,
+    ):
+        report = await run_dive(12, "nginx:latest")
+
+    assert calls == ["dive", "docker", "dive"]
+    assert report["image"]["sizeBytes"] == 205000000
 
 
 def test_parse_dive_report_extracts_summary_and_layers(dive_report):
@@ -185,6 +224,32 @@ def test_parse_dive_report_returns_none_for_empty_payload():
     assert reduced_report is None
 
 
+def test_parse_dive_report_keeps_full_contributor_count_when_rows_are_truncated():
+    report = {
+        "image": {
+            "sizeBytes": 120_000_000,
+            "efficiencyScore": 0.82,
+            "inefficientBytes": 24_000_000,
+        },
+        "layers": [
+            {
+                "digestId": f"sha256:layer-{index}",
+                "sizeBytes": 5_000_000,
+                "wastedBytes": 1_000_000 + index,
+                "command": f"RUN step {index}",
+            }
+            for index in range(15)
+        ],
+    }
+
+    summary, reduced_report = parse_dive_report(report)
+
+    assert summary is not None
+    assert summary["inefficient_layer_count"] == 15
+    assert reduced_report is not None
+    assert len(reduced_report["layers"]) == 12
+
+
 @pytest.mark.asyncio
 async def test_analyze_image_build_maps_failures_without_crashing():
     with patch(
@@ -195,3 +260,15 @@ async def test_analyze_image_build_maps_failures_without_crashing():
 
     assert result.status == BuildStatus.FAILED
     assert result.failure_reason == "dive_failed"
+
+
+@pytest.mark.asyncio
+async def test_analyze_image_build_returns_unavailable_when_disabled(monkeypatch):
+    monkeypatch.setattr(settings, "enable_build_analysis", False)
+
+    with patch("app.services.dive.run_dive", AsyncMock()) as run_dive_mock:
+        result = await analyze_image_build(7, "nginx:latest")
+
+    assert result.status == BuildStatus.UNAVAILABLE
+    assert result.failure_reason == BUILD_ANALYSIS_DISABLED_REASON
+    run_dive_mock.assert_not_awaited()

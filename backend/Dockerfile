@@ -1,6 +1,12 @@
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim AS python-base
 
+ENV VIRTUAL_ENV=/opt/venv \
+    PATH="${VIRTUAL_ENV}/bin:${PATH}"
 WORKDIR /app
+
+FROM python-base AS python-builder
+
+RUN python -m venv "${VIRTUAL_ENV}"
 COPY pyproject.toml .
 COPY app/ app/
 RUN pip install --no-cache-dir .
@@ -14,13 +20,14 @@ ENV CGO_ENABLED=0
 
 RUN GOOS=linux GOARCH=${TARGETARCH} go install github.com/wagoodman/dive@v${DIVE_VERSION}
 
-FROM python:3.12-slim AS runtime
+FROM python-base AS base
 
 ARG DOCKGUARD_UID=10001
 ARG DOCKGUARD_GID=10001
-ARG DIVE_VERSION=0.13.1
 ARG DOCKER_CLI_VERSION=29.3.0
 ARG TARGETARCH=amd64
+
+ENV TRIVY_CACHE_DIR=/home/dockguard/.cache/trivy
 
 # Apply OS security patches + install Trivy, Docker CLI, and Dive in a single layer.
 RUN apt-get update && apt-get upgrade -y \
@@ -49,17 +56,14 @@ RUN groupadd -g ${DOCKGUARD_GID} dockguard \
     && mkdir -p /home/dockguard/.cache/trivy && chown -R dockguard:dockguard /home/dockguard
 
 WORKDIR /app
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin/uvicorn /usr/local/bin/uvicorn
-COPY --from=builder /usr/local/bin/alembic /usr/local/bin/alembic
+
+FROM base AS runtime
+
+COPY --from=python-builder /opt/venv /opt/venv
 COPY --from=dive-builder /go/bin/dive /usr/local/bin/dive
-COPY app/ app/
-COPY alembic/ alembic/
-COPY alembic.ini .
+COPY --chown=dockguard:dockguard alembic/ alembic/
+COPY --chown=dockguard:dockguard alembic.ini .
 
-RUN chown -R dockguard:dockguard /app
-
-ENV TRIVY_CACHE_DIR=/home/dockguard/.cache/trivy
 USER dockguard
 
 EXPOSE 8000
@@ -69,7 +73,8 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 FROM runtime AS dev
 
 USER root
-COPY --from=builder /app/pyproject.toml .
+COPY --from=python-builder /app/pyproject.toml .
+COPY --from=python-builder --chown=dockguard:dockguard /app/app app/
+COPY --chown=dockguard:dockguard tests/ tests/
 RUN pip install --no-cache-dir ".[dev]"
-COPY tests/ tests/
 USER dockguard
