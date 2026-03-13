@@ -26,22 +26,15 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6 lg:space-y-8">
-      <section className="rounded-[30px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] p-5 shadow-[0_18px_48px_rgba(120,53,15,0.08)] sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--dockguard-muted)]">
-              Analysis
-            </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[color:var(--dockguard-ink)] sm:text-4xl">
-              Scan an image
-            </h1>
-          </div>
-        </div>
+    <div className="space-y-4 lg:space-y-8">
+      <section className="rounded-[18px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] p-3 shadow-none sm:rounded-[30px] sm:p-6 sm:shadow-[0_18px_48px_rgba(120,53,15,0.08)]">
+        <h1 className="text-xl font-semibold tracking-tight text-[color:var(--dockguard-ink)] sm:mt-3 sm:text-4xl">
+          Scan an image
+        </h1>
 
         <form
           onSubmit={handleSubmit}
-          className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]"
+          className="mt-3 grid gap-2.5 lg:mt-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-4"
         >
           <label className="block">
             <span className="sr-only">Docker image reference</span>
@@ -50,7 +43,7 @@ export default function Dashboard() {
               value={image}
               onChange={(event) => setImage(event.target.value)}
               placeholder="nginx:latest"
-              className="w-full rounded-[22px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-4 py-4 font-mono text-sm text-[color:var(--dockguard-ink)] placeholder:text-[color:var(--dockguard-muted)] focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+              className="w-full rounded-[18px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-4 py-3 font-mono text-sm text-[color:var(--dockguard-ink)] placeholder:text-[color:var(--dockguard-muted)] focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 sm:rounded-[22px] sm:py-4"
               disabled={loading}
             />
           </label>
@@ -59,7 +52,7 @@ export default function Dashboard() {
             <button
               type="submit"
               disabled={loading || !image.trim()}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:py-3"
             >
               {loading ? (
                 <>
@@ -74,7 +67,7 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={handleCancel}
-                className="rounded-full border border-[color:var(--dockguard-border)] px-4 py-3 text-sm font-medium text-[color:var(--dockguard-muted)] transition hover:border-rose-300 hover:text-rose-700 dark:hover:text-rose-300"
+                className="rounded-full border border-[color:var(--dockguard-border)] px-4 py-2.5 text-sm font-medium text-[color:var(--dockguard-muted)] transition hover:border-rose-300 hover:text-rose-700 dark:hover:text-rose-300 sm:py-3"
               >
                 Cancel
               </button>
@@ -89,7 +82,7 @@ export default function Dashboard() {
         )}
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_320px] xl:items-start">
+      <section className="md:grid md:gap-6 xl:grid-cols-[minmax(0,1.35fr)_320px] xl:items-start">
         <div className="min-w-0">
           {scan ? (
             <div className="space-y-4">
@@ -100,7 +93,9 @@ export default function Dashboard() {
           )}
         </div>
 
-        <SeverityDonut summary={scan?.summary ?? null} />
+        <div className="hidden md:block">
+          <SeverityDonut summary={scan?.summary ?? null} />
+        </div>
       </section>
     </div>
   );

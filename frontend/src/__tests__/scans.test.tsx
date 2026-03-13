@@ -59,15 +59,17 @@ test("renders scan rows from API with build status", async () => {
   render(<ScansPage />);
 
   await waitFor(() => {
-    expect(screen.getByText("nginx:latest")).toBeInTheDocument();
+    expect(screen.getAllByText("nginx:latest").length).toBeGreaterThan(0);
   });
 
-  expect(screen.getByText("alpine:3.19")).toBeInTheDocument();
+  expect(screen.getAllByText("alpine:3.19").length).toBeGreaterThan(0);
   expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
-  expect(screen.getByText("unavailable")).toBeInTheDocument();
+  expect(screen.getAllByText("unavailable").length).toBeGreaterThan(0);
   expect(screen.getByText("2 scans")).toBeInTheDocument();
   expect(screen.getByText("Submitted")).toBeInTheDocument();
-  expect(screen.getByText(new Date("2026-03-11T00:00:00Z").toLocaleString())).toBeInTheDocument();
+  expect(
+    screen.getAllByText(new Date("2026-03-11T00:00:00Z").toLocaleString()).length
+  ).toBeGreaterThan(0);
 });
 
 test("shows empty state when no scans exist", async () => {
@@ -79,6 +81,6 @@ test("shows empty state when no scans exist", async () => {
   render(<ScansPage />);
 
   await waitFor(() => {
-    expect(screen.getByText(/no scans yet/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/no scans yet/i).length).toBeGreaterThan(0);
   });
 });

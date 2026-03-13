@@ -36,8 +36,8 @@ export function ScanWorkspace({
   const buildSummary = scan.build?.summary;
 
   return (
-    <section className="overflow-hidden rounded-[30px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] shadow-[0_24px_80px_rgba(120,53,15,0.08)]">
-      <div className="flex flex-col gap-4 border-b border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-5 py-5 sm:px-7">
+    <section className="overflow-hidden rounded-[24px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] shadow-none sm:rounded-[30px] sm:shadow-[0_24px_80px_rgba(120,53,15,0.08)]">
+      <div className="flex flex-col gap-4 border-b border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-4 py-4 sm:px-7 sm:py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="min-w-0 truncate font-mono text-sm text-[color:var(--dockguard-ink)] sm:text-base">
             {scan.image_name}
@@ -108,9 +108,9 @@ function SecurityWorkspace({
   vulnerabilities: Vulnerability[];
 }) {
   return (
-    <div className="space-y-7">
-      <div className="overflow-hidden rounded-[24px] border border-[color:var(--dockguard-border)]">
-        <div className="border-b border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-5 py-4">
+    <div className="space-y-5 sm:space-y-7">
+      <div className="overflow-x-auto sm:overflow-hidden sm:rounded-[24px] sm:border sm:border-[color:var(--dockguard-border)]">
+        <div className="px-1 pb-3 sm:border-b sm:border-[color:var(--dockguard-border)] sm:bg-[color:var(--dockguard-panel)] sm:px-5 sm:py-4">
           <h3 className="text-lg font-semibold text-[color:var(--dockguard-ink)]">
             Vulnerabilities ({vulnerabilities.length})
           </h3>
@@ -225,8 +225,8 @@ function BuildWorkspace({
   }
 
   return (
-    <div className="space-y-7">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="space-y-5 sm:space-y-7">
+      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
         <MetricCard
           label="Image Size"
           value={formatBytes(buildSummary.image_size_bytes)}
@@ -250,8 +250,8 @@ function BuildWorkspace({
         />
       </div>
 
-      <div className="overflow-hidden rounded-[24px] border border-[color:var(--dockguard-border)]">
-        <div className="border-b border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-5 py-4">
+      <div className="overflow-x-auto sm:overflow-hidden sm:rounded-[24px] sm:border sm:border-[color:var(--dockguard-border)]">
+        <div className="px-1 pb-3 sm:border-b sm:border-[color:var(--dockguard-border)] sm:bg-[color:var(--dockguard-panel)] sm:px-5 sm:py-4">
           <h3 className="text-lg font-semibold text-[color:var(--dockguard-ink)]">
             Highest waste contributors
           </h3>
@@ -323,7 +323,7 @@ function MetricCard({
   accent?: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-5 py-5">
+    <div className="rounded-[18px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-4 py-4 sm:rounded-[22px] sm:px-5 sm:py-5">
       <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--dockguard-muted)]">
         {label}
       </p>

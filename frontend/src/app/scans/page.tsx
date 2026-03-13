@@ -35,17 +35,61 @@ export default function ScansPage() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--dockguard-muted)]">
             History
           </p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[color:var(--dockguard-ink)] sm:text-4xl">
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[color:var(--dockguard-ink)] sm:mt-3 sm:text-4xl">
             Scan runs
           </h1>
         </div>
-        <span className="rounded-full border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] px-4 py-2 text-sm text-[color:var(--dockguard-muted)]">
+        <span className="hidden rounded-full border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] px-4 py-2 text-sm text-[color:var(--dockguard-muted)] sm:inline-flex">
           {loading ? "Loading" : `${total} scans`}
         </span>
       </header>
 
-      <section className="overflow-hidden rounded-[30px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] shadow-[0_18px_48px_rgba(120,53,15,0.08)]">
-        <div className="overflow-x-auto">
+      <section className="overflow-hidden rounded-[24px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] shadow-none sm:rounded-[30px] sm:shadow-[0_18px_48px_rgba(120,53,15,0.08)]">
+        <div className="space-y-3 p-4 sm:hidden">
+          {loading ? (
+            Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-28 rounded-[22px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] skeleton-shimmer"
+              />
+            ))
+          ) : scans.length === 0 ? (
+            <div className="rounded-[20px] border border-dashed border-[color:var(--dockguard-border)] px-4 py-10 text-center text-sm text-[color:var(--dockguard-muted)]">
+              No scans yet. Run one from the{" "}
+              <Link href="/" className="text-amber-700 hover:underline dark:text-amber-300">
+                analysis view
+              </Link>
+              .
+            </div>
+          ) : (
+            scans.map((scan) => (
+              <button
+                key={scan.id}
+                type="button"
+                onClick={() => router.push(`/scans/${scan.id}`)}
+                className="w-full rounded-[22px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] p-4 text-left"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <p className="min-w-0 truncate font-mono text-xs text-[color:var(--dockguard-ink)]">
+                    {scan.image_name}
+                  </p>
+                  <p className="font-mono text-xs text-rose-600 dark:text-rose-400">
+                    C {scan.summary?.critical ?? "—"}
+                  </p>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <StatusBadge status={scan.scan_status} />
+                  {scan.build_status && <StatusBadge status={scan.build_status} />}
+                </div>
+                <p className="mt-3 text-xs text-[color:var(--dockguard-muted)]">
+                  {formatDateTime(scan.created_at)}
+                </p>
+              </button>
+            ))
+          )}
+        </div>
+
+        <div className="hidden overflow-x-auto sm:block">
           <table className="min-w-full text-sm">
             <thead className="bg-[color:var(--dockguard-panel)] text-left text-[11px] uppercase tracking-[0.24em] text-[color:var(--dockguard-muted)]">
               <tr>

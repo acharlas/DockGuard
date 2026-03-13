@@ -77,7 +77,7 @@ test("renders scan image name, status, and issue card", async () => {
   });
 
   expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
-  expect(screen.getByText("sha256:abc")).toBeInTheDocument();
+  expect(screen.getAllByText("sha256:abc").length).toBeGreaterThan(0);
   expect(screen.getByText("Issues")).toBeInTheDocument();
 });
 

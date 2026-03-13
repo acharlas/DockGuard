@@ -164,7 +164,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 aria-label="Close navigation"
                 onClick={() => setMobileOpen(false)}
               />
-              <div className="absolute left-4 top-4 flex w-[min(18rem,calc(100vw-2rem))] flex-col gap-6 rounded-[28px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] p-5 shadow-[0_24px_80px_rgba(23,12,7,0.35)]">
+              <div className="absolute inset-x-0 top-0 flex h-[66vh] flex-col gap-6 rounded-b-[32px] border-b border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] p-5 shadow-[0_24px_80px_rgba(23,12,7,0.35)]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[color:var(--dockguard-muted)]">
@@ -202,10 +202,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     onNavigate: () => setMobileOpen(false),
                   })}
                 </nav>
-                {renderGrafanaLink({
-                  mobile: true,
-                  onNavigate: () => setMobileOpen(false),
-                })}
+                <div className="mt-auto">
+                  {renderGrafanaLink({
+                    mobile: true,
+                    onNavigate: () => setMobileOpen(false),
+                  })}
+                </div>
               </div>
             </div>
           )}
