@@ -134,6 +134,7 @@ async def create_scan(
         )
         active_scan = active_result.scalars().first()
         if active_scan:
+            response.status_code = status.HTTP_200_OK
             return active_scan
 
         requested_digest = extract_requested_digest(body.image)
@@ -326,11 +327,17 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
             2,
         )
 
+    # NOTE: CVE aggregation is Python-side (not SQL) because vulnerabilities are stored
+    # as raw Trivy JSON in raw_report. We limit to the N most recent completed scans to
+    # bound memory use. Denormalize into a Vulnerability table if this proves too slow.
+    # See CLAUDE.md: "Denormalize only if proven slow."
     cve_map: dict[str, dict] = {}
     cve_result = await db.execute(
         select(ScanResult.raw_report)
         .where(ScanResult.scan_status == ScanStatus.COMPLETED)
         .where(ScanResult.raw_report.is_not(None))
+        .order_by(ScanResult.id.desc())
+        .limit(settings.stats_recent_scan_limit)
     )
     for raw_report in cve_result.scalars():
         for vuln in parse_vulnerabilities(raw_report):

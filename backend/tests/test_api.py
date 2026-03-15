@@ -38,7 +38,7 @@ async def test_create_scan_returns_existing_active_scan(
     await db_session.refresh(existing)
 
     resp = await client.post("/api/v1/scans", json={"image": "nginx:latest"})
-    assert resp.status_code == 202
+    assert resp.status_code == 200  # 200 = existing scan returned, not a new one
     assert resp.json()["id"] == existing.id
 
 
@@ -81,7 +81,8 @@ async def test_create_scan_deduplicates_concurrent_requests(
         client.post("/api/v1/scans", json={"image": "nginx:latest"}),
     )
 
-    assert all(resp.status_code == 202 for resp in responses)
+    # One request creates the scan (202), the other deduplicates it (200).
+    assert all(resp.status_code in (200, 202) for resp in responses)
     assert len({resp.json()["id"] for resp in responses}) == 1
 
     async with session_factory() as session:
@@ -453,4 +454,66 @@ async def test_stats_top_cves_include_all_completed_scans(
     data = resp.json()
 
     assert data["top_cves"][0]["vuln_id"] == "CVE-2026-0001"
-    assert data["top_cves"][0]["count"] == 101
+    # Default limit is 100: only the 100 most recent scans are aggregated.
+    assert data["top_cves"][0]["count"] == 100
+
+
+@pytest.mark.asyncio
+async def test_create_scan_dedup_returns_200(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    """Deduplication path returns 200, not 202, to distinguish it from a new scan."""
+    existing = ScanResult(image_name="nginx:latest", scan_status="pending")
+    db_session.add(existing)
+    await db_session.commit()
+    await db_session.refresh(existing)
+
+    resp = await client.post("/api/v1/scans", json={"image": "nginx:latest"})
+    assert resp.status_code == 200
+    assert resp.json()["id"] == existing.id
+
+
+@pytest.mark.asyncio
+async def test_stats_cve_query_respects_recent_scan_limit(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    trivy_report,
+):
+    """get_stats aggregates only the N most recent completed scans for the CVE list."""
+    # Insert 5 scans each with a unique CVE
+    import copy
+    for i in range(5):
+        report = copy.deepcopy(trivy_report)
+        report["Results"][0]["Vulnerabilities"] = [
+            {
+                "VulnerabilityID": f"CVE-LIMIT-{i:04d}",
+                "PkgName": "pkg",
+                "InstalledVersion": "1.0",
+                "Severity": "HIGH",
+                "Title": f"test vuln {i}",
+            }
+        ]
+        db_session.add(
+            ScanResult(
+                image_name=f"img{i}:latest",
+                scan_status="completed",
+                summary={"critical": 0, "high": 1, "medium": 0, "low": 0, "unknown": 0},
+                raw_report=report,
+            )
+        )
+    await db_session.commit()
+
+    # With limit=2 only the 2 most recently inserted scans contribute CVEs
+    original = settings.stats_recent_scan_limit
+    settings.stats_recent_scan_limit = 2
+    try:
+        resp = await client.get("/api/v1/stats")
+        assert resp.status_code == 200
+        cve_ids = {cve["vuln_id"] for cve in resp.json()["top_cves"]}
+        assert len(cve_ids) == 2
+        # The two most recent scans have CVE-LIMIT-0003 and CVE-LIMIT-0004
+        assert "CVE-LIMIT-0003" in cve_ids
+        assert "CVE-LIMIT-0004" in cve_ids
+    finally:
+        settings.stats_recent_scan_limit = original
