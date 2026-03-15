@@ -21,7 +21,7 @@ export function useActiveScan() {
     }
 
     let cancelled = false;
-    let timeoutId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const controller = new AbortController();
 
     const poll = async () => {
@@ -32,7 +32,7 @@ export function useActiveScan() {
         }
         setScan(data);
         if (isActiveScanStatus(data.scan_status)) {
-          timeoutId = window.setTimeout(poll, 2000);
+          timeoutId = setTimeout(poll, 2000);
           return;
         }
         setActiveScanId(null);
@@ -65,7 +65,7 @@ export function useActiveScan() {
       cancelled = true;
       controller.abort();
       if (timeoutId !== undefined) {
-        window.clearTimeout(timeoutId);
+        clearTimeout(timeoutId);
       }
     };
   }, [activeScanId]);
