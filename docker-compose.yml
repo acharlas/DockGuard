@@ -37,6 +37,8 @@ services:
       - "${DOCKER_GID:-1001}"
     volumes:
       - trivycache:/home/dockguard/.cache/trivy
+      # Docker socket required for dive build analysis (image layer inspection).
+      # Note: this grants the backend root-equivalent access to the host Docker daemon.
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       DATABASE_URL: postgresql+asyncpg://dockguard:dockguard@postgres:5432/dockguard
@@ -54,7 +56,7 @@ services:
         condition: service_completed_successfully
     command: >
       sh -c "alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"
 
   frontend:
     build:
