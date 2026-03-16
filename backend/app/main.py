@@ -15,7 +15,6 @@ from app.services.dive import log_build_runtime_status
 from app.services.scanner import reconcile_interrupted_scans
 from app.tasks import _background_tasks, _shutdown_event
 
-
 LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -37,8 +36,16 @@ LOGGING_CONFIG = {
         "handlers": ["console"],
     },
     "loggers": {
-        "uvicorn": {"level": "INFO", "handlers": ["console"], "propagate": False},
-        "uvicorn.access": {"level": "INFO", "handlers": ["console"], "propagate": False},
+        "uvicorn": {
+            "level": "INFO",
+            "handlers": ["console"],
+            "propagate": False,
+        },
+        "uvicorn.access": {
+            "level": "INFO",
+            "handlers": ["console"],
+            "propagate": False,
+        },
     },
 }
 

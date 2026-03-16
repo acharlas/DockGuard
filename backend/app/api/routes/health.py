@@ -39,7 +39,8 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     # Trivy CLI
     try:
         proc = await asyncio.create_subprocess_exec(
-            "trivy", "--version",
+            "trivy",
+            "--version",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -49,9 +50,13 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         components["trivy"] = "unhealthy"
 
     # Overall: healthy if DB + Trivy are both healthy (Redis is optional)
-    required_healthy = components["database"] == "healthy" and components["trivy"] == "healthy"
+    required_healthy = (
+        components["database"] == "healthy" and components["trivy"] == "healthy"
+    )
     overall = "healthy" if required_healthy else "degraded"
-    code = status.HTTP_200_OK if required_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+    code = (
+        status.HTTP_200_OK if required_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+    )
 
     return JSONResponse(
         status_code=code,
