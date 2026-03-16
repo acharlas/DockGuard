@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import logging.config
 from contextlib import asynccontextmanager
@@ -12,7 +13,7 @@ from app.config import settings
 from app.db.session import engine
 from app.services.dive import log_build_runtime_status
 from app.services.scanner import reconcile_interrupted_scans
-from app.tasks import _background_tasks
+from app.tasks import _background_tasks, _shutdown_event
 
 
 LOGGING_CONFIG = {
@@ -48,6 +49,12 @@ async def lifespan(app: FastAPI):
     await reconcile_interrupted_scans()
     log_build_runtime_status()
     yield
+    _shutdown_event.set()
+    # Give active scans up to 10s to finish
+    for _ in range(20):
+        if not _background_tasks:
+            break
+        await asyncio.sleep(0.5)
     for task in _background_tasks:
         task.cancel()
     await engine.dispose()

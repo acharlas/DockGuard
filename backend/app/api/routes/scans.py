@@ -23,7 +23,7 @@ from app.schemas.scan import (
 from app.services.cache import extract_requested_digest, get_cached_scan_id_for_digest
 from app.services.scanner import cancel_scan, run_scan
 from app.services.trivy_parser import parse_vulnerabilities
-from app.tasks import create_background_task
+from app.tasks import _shutdown_event, create_background_task
 
 router = APIRouter()
 # Single-process admission control keeps duplicate suppression and queue checks honest
@@ -125,6 +125,11 @@ async def create_scan(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
+    if _shutdown_event.is_set():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Server is shutting down. Try again later.",
+        )
     async with _scan_admission_lock:
         active_result = await db.execute(
             select(ScanResult)

@@ -12,3 +12,6 @@ def create_background_task(coro: Coroutine) -> asyncio.Task:
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
     return task
+
+
+_shutdown_event = asyncio.Event()

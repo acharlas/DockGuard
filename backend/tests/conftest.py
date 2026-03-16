@@ -13,6 +13,7 @@ from app.models.scan import Base
 from app.services import cache as cache_module
 from app.services import scanner as scanner_module
 from app.services import subprocesses as subprocesses_module
+from app.tasks import _shutdown_event
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -79,7 +80,9 @@ def reset_global_state():
         settings.enable_build_analysis = True
         cache_module._client = None
         subprocesses_module.running_processes.clear()
+        _shutdown_event.clear()
         yield
         settings.enable_build_analysis = original_enable_build_analysis
         cache_module._client = None
         subprocesses_module.running_processes.clear()
+        _shutdown_event.clear()
