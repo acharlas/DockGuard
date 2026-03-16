@@ -1,0 +1,131 @@
+#cloud-config
+package_update: true
+
+packages:
+  - dnf-utils
+
+runcmd:
+  # --- Install Docker CE (ARM-compatible via dnf repo) ---
+  - dnf install -y dnf-utils
+  - dnf config-manager --add-repo=https://download.docker.com/linux/rhel/docker-ce.repo
+  - dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+  - systemctl enable --now docker
+  - usermod -aG docker opc
+
+  # --- Install cloudflared (ARM binary download — simplest for Oracle Linux) ---
+  - curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64" -o /usr/local/bin/cloudflared
+  - chmod +x /usr/local/bin/cloudflared
+
+  # --- Configure Cloudflare Tunnel as systemd service ---
+  - cloudflared service install ${cloudflare_tunnel_token}
+
+  # --- Create app directory ---
+  - mkdir -p /opt/dockguard
+
+  # --- Write docker-compose.yml ---
+  - |
+    cat > /opt/dockguard/docker-compose.yml << 'COMPOSE'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        environment:
+          POSTGRES_DB: dockguard
+          POSTGRES_USER: dockguard
+          POSTGRES_PASSWORD: "${db_password}"
+        volumes:
+          - pgdata:/var/lib/postgresql/data
+        command: >
+          postgres
+          -c shared_buffers=256MB
+          -c max_connections=100
+        healthcheck:
+          test: ["CMD-SHELL", "pg_isready -U dockguard"]
+          interval: 5s
+          retries: 5
+        restart: unless-stopped
+      redis:
+        image: redis:7-alpine
+        volumes:
+          - redisdata:/data
+        restart: unless-stopped
+      trivy-cache-init:
+        image: busybox:1.37.0
+        command: chown -R 10001:10001 /trivycache
+        volumes:
+          - trivycache:/trivycache
+      backend:
+        image: ${backend_image}
+        depends_on:
+          postgres:
+            condition: service_healthy
+          redis:
+            condition: service_started
+          trivy-cache-init:
+            condition: service_completed_successfully
+        environment:
+          DATABASE_URL: "postgresql+asyncpg://dockguard:${db_password}@postgres:5432/dockguard"
+          CORS_ORIGINS: '["https://dockguard.${domain}"]'
+          REDIS_URL: redis://redis:6379/0
+          ENABLE_BUILD_ANALYSIS: "false"
+          MAX_PENDING_SCANS: "25"
+        volumes:
+          - trivycache:/home/dockguard/.cache/trivy
+        command: >
+          sh -c "alembic upgrade head &&
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"
+        restart: unless-stopped
+      frontend:
+        image: ${frontend_image}
+        depends_on:
+          - backend
+        environment:
+          API_URL: http://backend:8000
+        restart: unless-stopped
+      prometheus:
+        image: prom/prometheus:v3.2.1
+        volumes:
+          - promdata:/prometheus
+          - /opt/dockguard/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+        restart: unless-stopped
+      grafana:
+        image: grafana/grafana:11.5.2
+        environment:
+          GF_AUTH_ANONYMOUS_ENABLED: "true"
+          GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+          GF_SECURITY_ADMIN_PASSWORD: "${db_password}"
+        volumes:
+          - grafanadata:/var/lib/grafana
+        restart: unless-stopped
+    volumes:
+      pgdata:
+      redisdata:
+      trivycache:
+      promdata:
+      grafanadata:
+    COMPOSE
+
+  # --- Write prometheus config ---
+  - |
+    cat > /opt/dockguard/prometheus.yml << 'PROMCFG'
+    global:
+      scrape_interval: 15s
+    scrape_configs:
+      - job_name: dockguard-backend
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["backend:8000"]
+    PROMCFG
+
+  # --- Write deploy script (used by CI for image updates) ---
+  - |
+    cat > /opt/dockguard/deploy.sh << 'DEPLOY'
+    #!/bin/bash
+    set -euo pipefail
+    cd /opt/dockguard
+    docker compose pull backend frontend
+    docker compose up -d
+    DEPLOY
+  - chmod +x /opt/dockguard/deploy.sh
+
+  # --- Pull and start ---
+  - cd /opt/dockguard && docker compose pull && docker compose up -d
