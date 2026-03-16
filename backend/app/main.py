@@ -1,3 +1,5 @@
+import logging
+import logging.config
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -13,8 +15,36 @@ from app.services.scanner import reconcile_interrupted_scans
 from app.tasks import _background_tasks
 
 
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "json": {
+            "format": '{"time":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}',
+            "datefmt": "%Y-%m-%dT%H:%M:%S",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json",
+            "stream": "ext://sys.stdout",
+        },
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": ["console"],
+    },
+    "loggers": {
+        "uvicorn": {"level": "INFO", "handlers": ["console"], "propagate": False},
+        "uvicorn.access": {"level": "INFO", "handlers": ["console"], "propagate": False},
+    },
+}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logging.config.dictConfig(LOGGING_CONFIG)
     await reconcile_interrupted_scans()
     log_build_runtime_status()
     yield
