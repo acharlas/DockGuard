@@ -1,6 +1,6 @@
 # --- Cloudflare Tunnel (Free) ---
 
-resource "cloudflare_tunnel" "main" {
+resource "cloudflare_zero_trust_tunnel_cloudflared" "main" {
   account_id = var.cloudflare_account_id
   name       = "dockguard-tunnel"
   secret     = random_id.tunnel_secret.b64_std
@@ -12,9 +12,9 @@ resource "random_id" "tunnel_secret" {
 
 # --- Tunnel Configuration ---
 
-resource "cloudflare_tunnel_config" "main" {
+resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
   account_id = var.cloudflare_account_id
-  tunnel_id  = cloudflare_tunnel.main.id
+  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.main.id
 
   config {
     ingress_rule {
@@ -39,7 +39,7 @@ resource "cloudflare_tunnel_config" "main" {
 resource "cloudflare_record" "app" {
   zone_id = var.cloudflare_zone_id
   name    = "dockguard"
-  content = "${cloudflare_tunnel.main.id}.cfargotunnel.com"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.main.id}.cfargotunnel.com"
   type    = "CNAME"
   proxied = true
 }
@@ -47,7 +47,7 @@ resource "cloudflare_record" "app" {
 resource "cloudflare_record" "grafana" {
   zone_id = var.cloudflare_zone_id
   name    = "grafana"
-  content = "${cloudflare_tunnel.main.id}.cfargotunnel.com"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.main.id}.cfargotunnel.com"
   type    = "CNAME"
   proxied = true
 }

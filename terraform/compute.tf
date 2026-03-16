@@ -38,7 +38,7 @@ resource "oci_core_instance" "app" {
   metadata = {
     ssh_authorized_keys = var.ssh_public_key
     user_data = base64encode(templatefile("${path.module}/cloud-init.yml.tftpl", {
-      cloudflare_tunnel_token = cloudflare_tunnel.main.tunnel_token
+      cloudflare_tunnel_token = cloudflare_zero_trust_tunnel_cloudflared.main.tunnel_token
       backend_image           = var.ghcr_image_backend
       frontend_image          = var.ghcr_image_frontend
       db_password             = var.db_password

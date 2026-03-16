@@ -15,5 +15,5 @@ output "grafana_url" {
 
 output "tunnel_id" {
   description = "Cloudflare Tunnel ID"
-  value       = cloudflare_tunnel.main.id
+  value       = cloudflare_zero_trust_tunnel_cloudflared.main.id
 }
