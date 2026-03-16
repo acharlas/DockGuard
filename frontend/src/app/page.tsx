@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ScanInsightPanel } from "@/components/ScanInsightPanel";
 import { ScanWorkspace, WorkspaceTab } from "@/components/ScanWorkspace";
+import { MobileSeveritySummary } from "@/components/SeverityDonut";
 import { useActiveScan } from "@/hooks/useActiveScan";
 
 export default function Dashboard() {
@@ -95,6 +96,7 @@ export default function Dashboard() {
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
               />
+              <MobileSeveritySummary summary={scan.summary ?? null} />
             </div>
           ) : (
             <EmptyWorkspace />
