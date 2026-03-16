@@ -33,8 +33,8 @@ graph TD
 | Database | PostgreSQL 16 (vulnerabilities stored as JSON in `raw_report`) |
 | Cache | Redis 7 (10-min TTL for digest-pinned image reuse, graceful degradation) |
 | Monitoring | Prometheus + Grafana (5 custom metrics) |
-| IaC | Terraform — flat `main.tf`, EC2 + RDS, `templatefile()` user_data |
-| CI/CD | GitHub Actions — lint → test → build → security scan → push GHCR |
+| IaC | Terraform — Oracle Cloud Always Free + Cloudflare Tunnel, Terraform Cloud remote state |
+| CI/CD | GitHub Actions — lint → test → build (ARM64) → security scan → push GHCR → deploy via SSH |
 
 ---
 
@@ -90,22 +90,29 @@ Add screenshots to [`docs/screenshots/`](docs/screenshots/) with these filenames
 ## DevSecOps Pipeline
 
 ```
-push → GitHub Actions
+push → GitHub Actions (ci.yml)
          │
          ├─ lint     ruff (Python) + ESLint (TypeScript) in parallel
          │
          ├─ test     pytest --cov-fail-under=70 + npm test in parallel
          │
-         ├─ build    docker build backend + frontend, tag with commit SHA
+         ├─ build    docker buildx (ARM64) backend + frontend
          │
          ├─ security-scan
          │           trivy image --severity CRITICAL --exit-code 1
          │           Upload SARIF → GitHub Security tab
-         │           Pipeline fails on any CRITICAL vulnerability
          │
-         └─ push-registry  (main branch only)
-                     docker push ghcr.io/acharlas/dockguard-backend:latest
-                     docker push ghcr.io/acharlas/dockguard-frontend:latest
+         ├─ push-registry  (main branch only)
+         │           docker push ghcr.io/acharlas/dockguard-{backend,frontend}:latest
+         │
+         └─ deploy-app  (main branch only, after push)
+                     SSH via Cloudflare Tunnel → docker compose pull && up -d
+
+push (terraform/) → GitHub Actions (deploy.yml)
+         │
+         ├─ terraform plan  (on PR — posts plan to PR comment)
+         │
+         └─ terraform apply  (on merge to main)
 ```
 
 The security gate (`--exit-code 1` on CRITICAL) means broken images never reach the registry. SARIF output makes vulnerabilities visible directly in the GitHub Security tab without any external tooling.
@@ -120,7 +127,7 @@ The security gate (`--exit-code 1` on CRITICAL) means broken images never reach 
 | `GET` | `/api/v1/scans` | Paginated scan history (filters: `status`, `date_from`, `date_to`) |
 | `GET` | `/api/v1/scans/{id}` | Scan detail with Security and Build sections |
 | `GET` | `/api/v1/stats` | Totals, severity breakdown, build metrics, top 10 CVEs across completed scans, top 5 images |
-| `GET` | `/api/v1/health` | Health check (DB ping) |
+| `GET` | `/api/v1/health` | Health check (DB, Redis, Trivy) |
 | `GET` | `/metrics` | Prometheus metrics |
 
 Direct backend docs are available in the dev stack at `http://localhost:8000/docs` and `http://localhost:8000/redoc`.
@@ -193,16 +200,34 @@ cd terraform && terraform init -backend=false && terraform fmt -check && terrafo
 | One scan row stores both lenses | Security and Build are part of the same user action. A second table would be ceremony for this MVP. |
 | `asyncio.Semaphore(3)` not a queue service | One line limits concurrency to 3 concurrent scan processes — zero extra infrastructure for a single-worker backend. |
 | Redis added at Day 5 | Not Day 1. Added when the use case was real (reuse digest-pinned scans safely), not speculatively. |
-| Flat Terraform (`main.tf`) | Modules add abstraction cost. For one VPC + one EC2 + one RDS, a flat file with clear comments is easier to read and review. |
-| `templatefile()` for `user_data` | Separates HCL interpolation from bash, avoiding nested heredoc parsing issues and making the bootstrap script testable independently. |
+| Flat Terraform (split by concern) | Files split by responsibility (provider, network, compute, cloudflare) without modules. Modules add abstraction cost for a single-VM deployment. |
+| `templatefile()` for cloud-init | Separates HCL interpolation from YAML/bash, avoiding nested heredoc parsing issues and making the bootstrap script testable independently. |
 | Build lens gated by config | `ENABLE_BUILD_ANALYSIS` keeps Docker-socket access out of demo deployments while preserving the full Build lens in local/dev Compose. |
 
-## Deployment Notes
+## Deployment
 
-- The sample Terraform deployment is demo-only. Resource names stay fixed to the `${project}-demo` pattern; there is no `environment` input anymore.
-- The sample Terraform deployment remains HTTP-only on port `80`, restricts dashboard access to `ssh_allowed_cidr`, and does not attempt to be production-hardened.
-- Restrict `ssh_allowed_cidr` explicitly in `terraform.tfvars`; the same CIDR also gates dashboard access in the sample Terraform stack.
-- The Build lens is disabled in the sample Terraform deployment. Use local/dev Compose when you want Docker-socket-backed Build analysis.
+Production runs on **Oracle Cloud Always Free** (ARM VM, 4 OCPU, 24GB RAM) with **Cloudflare Tunnel** for zero-trust ingress. No public HTTP ports on the VM.
+
+| URL | Service |
+|-----|---------|
+| https://dockguard.acharlas.dev | Dashboard |
+| https://grafana.acharlas.dev | Grafana |
+
+### Deploy from scratch
+
+1. Configure Terraform Cloud workspace with OCI credentials
+2. Configure Cloudflare API token and zone
+3. Copy `terraform/terraform.tfvars.example` to `terraform/terraform.tfvars` and fill in values
+4. Push to `main` — GitHub Actions handles:
+   - Image build (ARM64) → security scan → push to GHCR
+   - Terraform apply (if `terraform/` changed)
+   - App deploy via SSH (after images pushed)
+
+### Notes
+
+- SSH access restricted to `ssh_allowed_cidr` in Terraform vars
+- The Build lens is disabled in production (`ENABLE_BUILD_ANALYSIS=false`). Use local/dev Compose for Docker-socket-backed Build analysis
+- Grafana has anonymous read-only access enabled
 
 ---
 
