@@ -12,6 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
       - run: terraform fmt -check
         working-directory: terraform
       - run: terraform init -backend=false
@@ -122,6 +125,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
       - name: Build backend dev image
@@ -130,6 +134,7 @@ jobs:
           context: ./backend
           target: dev
           push: false
+          platforms: linux/arm64
           tags: dockguard-backend-dev:${{ github.sha }}
 
       - name: Build backend image
@@ -137,6 +142,7 @@ jobs:
         with:
           context: ./backend
           push: false
+          platforms: linux/arm64
           tags: dockguard-backend:${{ github.sha }}
           outputs: type=docker,dest=/tmp/backend.tar
 
@@ -146,6 +152,7 @@ jobs:
           context: ./frontend
           target: dev
           push: false
+          platforms: linux/arm64
           tags: dockguard-frontend-dev:${{ github.sha }}
 
       - name: Build frontend image
@@ -153,6 +160,7 @@ jobs:
         with:
           context: ./frontend
           push: false
+          platforms: linux/arm64
           tags: dockguard-frontend:${{ github.sha }}
           outputs: type=docker,dest=/tmp/frontend.tar
 
