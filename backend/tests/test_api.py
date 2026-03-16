@@ -482,7 +482,6 @@ async def test_stats_cve_query_respects_recent_scan_limit(
 ):
     """get_stats aggregates only the N most recent completed scans for the CVE list."""
     # Insert 5 scans each with a unique CVE
-    import copy
     for i in range(5):
         report = copy.deepcopy(trivy_report)
         report["Results"][0]["Vulnerabilities"] = [
