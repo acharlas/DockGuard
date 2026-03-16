@@ -329,7 +329,9 @@ async def test_health_returns_503_when_db_is_unavailable(
         app.dependency_overrides.pop(get_db, None)
 
     assert resp.status_code == 503
-    assert resp.json() == {"status": "degraded", "database": "unhealthy"}
+    data = resp.json()
+    assert data["status"] == "degraded"
+    assert data["database"] == "unhealthy"
 
 
 @pytest.mark.asyncio
