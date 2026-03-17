@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir .
 FROM golang:1.24.13-alpine AS dive-builder
 
 ARG DIVE_VERSION=0.13.1
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 
 ENV CGO_ENABLED=0
 
@@ -25,14 +25,14 @@ FROM python-base AS base
 ARG DOCKGUARD_UID=10001
 ARG DOCKGUARD_GID=10001
 ARG DOCKER_CLI_VERSION=29.3.0
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 
 ENV TRIVY_CACHE_DIR=/home/dockguard/.cache/trivy
 
 # Apply OS security patches + install Trivy, Docker CLI, and Dive in a single layer.
 RUN apt-get update && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
-        wget apt-transport-https ca-certificates gnupg lsb-release \
+        wget ca-certificates gnupg lsb-release \
     && wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
         | gpg --dearmor -o /usr/share/keyrings/trivy.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" \
@@ -61,6 +61,7 @@ FROM base AS runtime
 
 COPY --from=python-builder /opt/venv /opt/venv
 COPY --from=dive-builder /go/bin/dive /usr/local/bin/dive
+COPY --chown=dockguard:dockguard app/ app/
 COPY --chown=dockguard:dockguard alembic/ alembic/
 COPY --chown=dockguard:dockguard alembic.ini .
 

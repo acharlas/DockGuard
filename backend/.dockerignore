@@ -4,3 +4,12 @@ __pycache__
 .ruff_cache
 .coverage
 htmlcov
+.env*
+.git
+*.md
+Dockerfile
+.dockerignore
+venv/
+.venv/
+dist/
+*.egg-info/

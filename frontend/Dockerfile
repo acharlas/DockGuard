@@ -22,9 +22,9 @@ CMD ["npm", "run", "dev"]
 
 FROM node:22-alpine AS runtime
 
-# Apply OS security patches
-RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
-RUN addgroup -S dockguard && adduser -S -G dockguard dockguard
+# Apply OS security patches and create non-root user
+RUN apk update && apk upgrade && rm -rf /var/cache/apk/* \
+    && addgroup -S dockguard && adduser -S -G dockguard dockguard
 
 WORKDIR /app
 COPY --from=builder --chown=dockguard:dockguard /app/.next/standalone ./
