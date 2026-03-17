@@ -11,7 +11,7 @@ on:
       - "terraform/**"
 
 env:
-  TF_CLOUD_ORGANIZATION: "dockguard"
+  TF_CLOUD_ORGANIZATION: "acharlas"
   TF_API_TOKEN: "${{ secrets.TF_API_TOKEN }}"
   TF_WORKSPACE: "dockguard-prod"
   CONFIG_DIRECTORY: "./terraform"

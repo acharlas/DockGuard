@@ -2,7 +2,7 @@ terraform {
   required_version = ">= 1.7"
 
   cloud {
-    organization = "dockguard"
+    organization = "acharlas"
     workspaces {
       name = "dockguard-prod"
     }
