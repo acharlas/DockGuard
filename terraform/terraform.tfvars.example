@@ -1,28 +1,39 @@
-# Oracle Cloud (get from OCI console → User Settings → API Keys)
-oci_tenancy_ocid     = "ocid1.tenancy.oc1..example"
-oci_user_ocid        = "ocid1.user.oc1..example"
-oci_fingerprint      = "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"
-# Paste PEM content here for local use, or set as sensitive variable in Terraform Cloud
-oci_private_key      = <<-EOT
------BEGIN PRIVATE KEY-----
-your-key-content-here
------END PRIVATE KEY-----
-EOT
-oci_region           = "eu-paris-1"
-oci_compartment_id   = "ocid1.compartment.oc1..example"
+# ──────────────────────────────────────────────
+# Oracle Cloud Infrastructure
+# OCI Console → Profile → User Settings → API Keys
+# ──────────────────────────────────────────────
 
-# Cloudflare (get from dashboard → account ID, zone ID, API token)
+oci_tenancy_ocid   = "ocid1.tenancy.oc1..example"
+oci_user_ocid      = "ocid1.user.oc1..example"
+oci_fingerprint    = "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"
+oci_region         = "eu-paris-1"
+oci_compartment_id = "ocid1.compartment.oc1..example"
+
+oci_private_key = "PEM content of your OCI API private key"
+
+# ──────────────────────────────────────────────
+# Cloudflare
+# Dashboard → Account ID (sidebar) / Zone ID (Overview tab)
+# API Tokens → Create Token → Edit zone DNS + Cloudflare Tunnel
+# ──────────────────────────────────────────────
+
 cloudflare_api_token  = "your-cloudflare-api-token"
 cloudflare_account_id = "your-account-id"
 cloudflare_zone_id    = "your-zone-id"
 domain                = "acharlas.dev"
 
+# ──────────────────────────────────────────────
 # SSH
+# ──────────────────────────────────────────────
+
 ssh_public_key   = "ssh-ed25519 AAAA..."
 ssh_allowed_cidr = "YOUR.IP.HERE/32"
 
-# App
-ghcr_image_backend  = "ghcr.io/acharlas/dockguard-backend:latest"
-ghcr_image_frontend = "ghcr.io/acharlas/dockguard-frontend:latest"
+# ──────────────────────────────────────────────
+# Application
+# ──────────────────────────────────────────────
+
+ghcr_image_backend     = "ghcr.io/acharlas/dockguard-backend:latest"
+ghcr_image_frontend    = "ghcr.io/acharlas/dockguard-frontend:latest"
 db_password            = "change-me-in-production"
 grafana_admin_password = "change-me-in-production"
