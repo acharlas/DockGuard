@@ -39,11 +39,15 @@ resource "oci_core_instance" "app" {
     ssh_authorized_keys = var.ssh_public_key
     user_data = base64encode(templatefile("${path.module}/cloud-init.yml.tftpl", {
       cloudflare_tunnel_token = cloudflare_zero_trust_tunnel_cloudflared.main.tunnel_token
-      backend_image           = var.ghcr_image_backend
-      frontend_image          = var.ghcr_image_frontend
-      db_password             = var.db_password
-      grafana_admin_password  = var.grafana_admin_password
-      domain                  = var.domain
+      docker_compose = templatefile("${path.module}/templates/docker-compose.yml.tftpl", {
+        backend_image          = var.ghcr_image_backend
+        frontend_image         = var.ghcr_image_frontend
+        db_password            = var.db_password
+        grafana_admin_password = var.grafana_admin_password
+        domain                 = var.domain
+      })
+      prometheus_config = file("${path.module}/templates/prometheus.yml")
+      deploy_script    = file("${path.module}/templates/deploy.sh")
     }))
   }
 
