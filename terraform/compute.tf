@@ -42,6 +42,7 @@ resource "oci_core_instance" "app" {
       backend_image           = var.ghcr_image_backend
       frontend_image          = var.ghcr_image_frontend
       db_password             = var.db_password
+      grafana_admin_password  = var.grafana_admin_password
       domain                  = var.domain
     }))
   }

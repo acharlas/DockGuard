@@ -13,11 +13,13 @@ variable "oci_user_ocid" {
 variable "oci_fingerprint" {
   description = "OCI API key fingerprint"
   type        = string
+  sensitive   = true
 }
 
-variable "oci_private_key_path" {
-  description = "Path to OCI API private key"
+variable "oci_private_key" {
+  description = "OCI API private key content (PEM format)"
   type        = string
+  sensitive   = true
 }
 
 variable "oci_region" {
@@ -81,6 +83,12 @@ variable "ghcr_image_frontend" {
 
 variable "db_password" {
   description = "PostgreSQL password for the dockguard user"
+  type        = string
+  sensitive   = true
+}
+
+variable "grafana_admin_password" {
+  description = "Grafana admin password (separate from DB password)"
   type        = string
   sensitive   = true
 }

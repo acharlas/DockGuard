@@ -41,12 +41,18 @@ runcmd:
         healthcheck:
           test: ["CMD-SHELL", "pg_isready -U dockguard"]
           interval: 5s
+          timeout: 3s
           retries: 5
         restart: unless-stopped
       redis:
         image: redis:7-alpine
         volumes:
           - redisdata:/data
+        healthcheck:
+          test: ["CMD", "redis-cli", "ping"]
+          interval: 5s
+          timeout: 3s
+          retries: 5
         restart: unless-stopped
       trivy-cache-init:
         image: busybox:1.37.0
@@ -59,7 +65,7 @@ runcmd:
           postgres:
             condition: service_healthy
           redis:
-            condition: service_started
+            condition: service_healthy
           trivy-cache-init:
             condition: service_completed_successfully
         environment:
@@ -80,6 +86,8 @@ runcmd:
           - backend
         environment:
           API_URL: http://backend:8000
+        ports:
+          - "3000:3000"
         restart: unless-stopped
       prometheus:
         image: prom/prometheus:v3.2.1
@@ -92,9 +100,11 @@ runcmd:
         environment:
           GF_AUTH_ANONYMOUS_ENABLED: "true"
           GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
-          GF_SECURITY_ADMIN_PASSWORD: "${db_password}"
+          GF_SECURITY_ADMIN_PASSWORD: "${grafana_admin_password}"
         volumes:
           - grafanadata:/var/lib/grafana
+        ports:
+          - "3001:3000"
         restart: unless-stopped
     volumes:
       pgdata:
@@ -124,6 +134,7 @@ runcmd:
     cd /opt/dockguard
     docker compose pull backend frontend
     docker compose up -d
+    docker image prune -f
     DEPLOY
   - chmod +x /opt/dockguard/deploy.sh
 
