@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate-terraform:
     runs-on: ubuntu-latest
@@ -187,7 +191,7 @@ jobs:
 
       # Full scan → SARIF for GitHub Security tab (all vuln types, never blocks)
       - name: Scan backend image (SARIF)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.29.0
         with:
           image-ref: dockguard-backend:${{ github.sha }}
           format: sarif
@@ -196,7 +200,7 @@ jobs:
           severity: CRITICAL,HIGH,MEDIUM,LOW
 
       - name: Scan frontend image (SARIF)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.29.0
         with:
           image-ref: dockguard-frontend:${{ github.sha }}
           format: sarif
@@ -221,7 +225,7 @@ jobs:
       # Security gate: fail on CRITICAL app-library CVEs we can actually fix.
       # OS CVEs in the base image are tracked above and handled via base image updates.
       - name: Gate on backend app library CVEs
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.29.0
         with:
           image-ref: dockguard-backend:${{ github.sha }}
           format: table
@@ -231,7 +235,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Gate on frontend app library CVEs
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.29.0
         with:
           image-ref: dockguard-frontend:${{ github.sha }}
           format: table
@@ -279,6 +283,7 @@ jobs:
     needs: [push-registry]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Install cloudflared
         run: |
