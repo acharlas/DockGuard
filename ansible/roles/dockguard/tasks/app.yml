@@ -1,0 +1,48 @@
+---
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: opc
+    group: opc
+    mode: "0755"
+
+- name: Deploy docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ app_dir }}/docker-compose.yml"
+    owner: opc
+    group: opc
+    mode: "0644"
+  notify: restart compose
+
+- name: Deploy prometheus.yml
+  ansible.builtin.copy:
+    src: prometheus.yml
+    dest: "{{ app_dir }}/prometheus.yml"
+    owner: opc
+    group: opc
+    mode: "0644"
+  notify: restart compose
+
+- name: Deploy deploy.sh
+  ansible.builtin.copy:
+    src: deploy.sh
+    dest: "{{ app_dir }}/deploy.sh"
+    owner: opc
+    group: opc
+    mode: "0755"
+
+- name: Pull Docker images
+  ansible.builtin.command:
+    cmd: docker compose pull
+    chdir: "{{ app_dir }}"
+  register: pull_result
+  changed_when: "'Pull complete' in pull_result.stdout or 'Downloaded newer image' in pull_result.stdout"
+
+- name: Start Docker Compose stack
+  ansible.builtin.command:
+    cmd: docker compose up -d
+    chdir: "{{ app_dir }}"
+  register: compose_result
+  changed_when: "'Started' in compose_result.stderr or 'Creating' in compose_result.stderr"

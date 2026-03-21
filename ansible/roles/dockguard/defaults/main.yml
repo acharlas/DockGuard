@@ -1,0 +1,9 @@
+---
+ghcr_image_backend: "ghcr.io/acharlas/dockguard-backend:latest"
+ghcr_image_frontend: "ghcr.io/acharlas/dockguard-frontend:latest"
+app_dir: /opt/dockguard
+
+# Secrets — must be passed via --extra-vars in CI:
+# db_password:
+# grafana_admin_password:
+# cloudflare_tunnel_token:

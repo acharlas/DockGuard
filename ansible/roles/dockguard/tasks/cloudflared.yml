@@ -1,0 +1,19 @@
+---
+- name: Download cloudflared ARM binary
+  ansible.builtin.get_url:
+    url: https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64
+    dest: /usr/local/bin/cloudflared
+    mode: "0755"
+  register: cloudflared_download
+
+- name: Install cloudflared as systemd service
+  ansible.builtin.command:
+    cmd: cloudflared service install "{{ cloudflare_tunnel_token }}"
+    creates: /etc/systemd/system/cloudflared.service
+  notify: restart cloudflared
+
+- name: Ensure cloudflared service is enabled and running
+  ansible.builtin.systemd:
+    name: cloudflared
+    enabled: true
+    state: started
