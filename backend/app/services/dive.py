@@ -63,50 +63,24 @@ def _coerce_float(value: object) -> float | None:
     return None
 
 
-def _get_candidate(mapping: dict | None, *keys: str) -> object:
-    if not isinstance(mapping, dict):
-        return None
-    for key in keys:
-        value = mapping.get(key)
-        if value is not None:
-            return value
-    return None
-
-
-def _normalize_score(value: object) -> float | None:
-    score = _coerce_float(value)
-    if score is None:
-        return None
-    if score > 1:
-        score = score / 100
-    return round(score, 2)
-
-
-def _normalize_percent(value: object) -> float | None:
-    percent = _coerce_float(value)
-    if percent is None:
-        return None
-    if percent <= 1:
-        percent = percent * 100
-    return round(percent, 2)
-
-
-def _collect_duplicate_file_sizes(
+def _process_file_references(
     file_references: object,
-) -> tuple[dict[str, int], int | None]:
+    image_size: int | None,
+) -> tuple[dict[str, int], list[dict], int | None]:
     if not isinstance(file_references, list):
-        return {}, None
+        return {}, [], None
 
     duplicate_file_sizes: dict[str, int] = {}
+    contributor_rows: list[dict] = []
     total_inefficient_bytes = 0
     has_duplicates = False
 
-    for reference in file_references:
+    for index, reference in enumerate(file_references):
         if not isinstance(reference, dict):
             continue
 
-        path = _get_candidate(reference, "file", "path")
-        size_bytes = _coerce_int(_get_candidate(reference, "sizeBytes", "size"))
+        path = reference.get("file")
+        size_bytes = _coerce_int(reference.get("sizeBytes"))
         count = _coerce_int(reference.get("count"))
         if (
             not isinstance(path, str)
@@ -118,10 +92,31 @@ def _collect_duplicate_file_sizes(
             continue
 
         duplicate_file_sizes[path] = size_bytes
-        total_inefficient_bytes += size_bytes * (count - 1)
+        wasted_bytes = size_bytes * (count - 1)
+        total_inefficient_bytes += wasted_bytes
         has_duplicates = True
 
-    return duplicate_file_sizes, total_inefficient_bytes if has_duplicates else None
+        wasted_percent = None
+        if image_size:
+            wasted_percent = round((wasted_bytes / image_size) * 100, 2)
+
+        contributor_rows.append(
+            {
+                "index": index,
+                "layer_id": path,
+                "instruction": path,
+                "size_bytes": size_bytes,
+                "wasted_bytes": wasted_bytes,
+                "wasted_percent": wasted_percent,
+                "efficiency_score": None,
+            }
+        )
+
+    return (
+        duplicate_file_sizes,
+        contributor_rows,
+        total_inefficient_bytes if has_duplicates else None,
+    )
 
 
 def _derive_layer_waste_from_files(
@@ -157,50 +152,6 @@ def _derive_layer_waste_from_files(
         seen_paths.update(current_paths)
 
     return derived_waste_by_layer
-
-
-def _build_contributor_rows(
-    file_references: object,
-    image_size: int | None,
-) -> list[dict]:
-    if not isinstance(file_references, list):
-        return []
-
-    contributors: list[dict] = []
-    for index, reference in enumerate(file_references):
-        if not isinstance(reference, dict):
-            continue
-
-        path = _get_candidate(reference, "file", "path")
-        size_bytes = _coerce_int(_get_candidate(reference, "sizeBytes", "size"))
-        count = _coerce_int(reference.get("count"))
-        if (
-            not isinstance(path, str)
-            or not path
-            or size_bytes is None
-            or not count
-            or count < 2
-        ):
-            continue
-
-        wasted_bytes = size_bytes * (count - 1)
-        wasted_percent = None
-        if image_size:
-            wasted_percent = round((wasted_bytes / image_size) * 100, 2)
-
-        contributors.append(
-            {
-                "index": index,
-                "layer_id": path,
-                "instruction": path,
-                "size_bytes": size_bytes,
-                "wasted_bytes": wasted_bytes,
-                "wasted_percent": wasted_percent,
-                "efficiency_score": None,
-            }
-        )
-
-    return contributors
 
 
 async def _run_dive_json_file(scan_id: int, image_name: str, output_path: str) -> dict:
@@ -271,56 +222,20 @@ def parse_dive_report(report: dict | None) -> tuple[dict | None, dict | None]:
         return None, None
 
     image_section = report.get("image") if isinstance(report.get("image"), dict) else {}
-    metrics_section = (
-        report.get("metrics") if isinstance(report.get("metrics"), dict) else {}
-    )
-    summary_source = image_section or metrics_section or report
 
-    image_size = _coerce_int(
-        _get_candidate(
-            summary_source,
-            "sizeBytes",
-            "size",
-            "imageSizeBytes",
-            "imageSize",
-        )
-    )
-    wasted_bytes = _coerce_int(
-        _get_candidate(
-            summary_source,
-            "inefficientBytes",
-            "wastedBytes",
-            "wastedByteCount",
-            "wasted",
-        )
-    )
-    efficiency_score = _normalize_score(
-        _get_candidate(
-            summary_source,
-            "efficiencyScore",
-            "efficiency",
-            "efficiencyPercent",
-        )
-    )
-    wasted_percent = _normalize_percent(
-        _get_candidate(
-            summary_source,
-            "wastedPercent",
-            "wastedPercentage",
-            "userWastedPercent",
-        )
-    )
+    image_size = _coerce_int(image_section.get("sizeBytes"))
+    wasted_bytes = _coerce_int(image_section.get("inefficientBytes"))
+    efficiency_score = _coerce_float(image_section.get("efficiencyScore"))
+    if efficiency_score is not None:
+        efficiency_score = round(efficiency_score, 2)
 
-    raw_layers = report.get("layers") if isinstance(report.get("layers"), list) else []
-    if not raw_layers and isinstance(report.get("layer"), list):
-        raw_layers = report["layer"]
+    # Dive v0.13.1 uses "layer" (singular); accept "layers" as fallback
+    raw_layers = report.get("layer") if isinstance(report.get("layer"), list) else []
+    if not raw_layers and isinstance(report.get("layers"), list):
+        raw_layers = report["layers"]
 
-    duplicate_file_sizes, duplicate_wasted_bytes = _collect_duplicate_file_sizes(
-        image_section.get("fileReference")
-    )
-    contributor_rows = _build_contributor_rows(
-        image_section.get("fileReference"),
-        image_size,
+    duplicate_file_sizes, contributor_rows, duplicate_wasted_bytes = (
+        _process_file_references(image_section.get("fileReference"), image_size)
     )
     if wasted_bytes is None:
         wasted_bytes = duplicate_wasted_bytes
@@ -329,72 +244,41 @@ def parse_dive_report(report: dict | None) -> tuple[dict | None, dict | None]:
         duplicate_file_sizes,
     )
 
+    wasted_percent = None
+    if image_size and wasted_bytes is not None:
+        wasted_percent = round((wasted_bytes / image_size) * 100, 2)
+
     layers: list[dict] = []
     for index, layer in enumerate(raw_layers):
         if not isinstance(layer, dict):
             continue
-        size_bytes = _coerce_int(
-            _get_candidate(layer, "sizeBytes", "size", "layerSizeBytes")
-        )
-        layer_wasted_bytes = _coerce_int(
-            _get_candidate(
-                layer,
-                "inefficientBytes",
-                "wastedBytes",
-                "wasted",
-                "wastedByteCount",
-            )
-        )
-        if layer_wasted_bytes is None:
-            layer_wasted_bytes = derived_waste_by_layer.get(index)
-        layer_wasted_percent = _normalize_percent(
-            _get_candidate(layer, "wastedPercent", "wastedPercentage")
-        )
+        size_bytes = _coerce_int(layer.get("sizeBytes"))
+        layer_wasted_bytes = derived_waste_by_layer.get(index)
+        layer_wasted_percent = None
         if (
-            layer_wasted_percent is None
+            layer_wasted_bytes is not None
             and size_bytes
-            and layer_wasted_bytes is not None
         ):
             layer_wasted_percent = round((layer_wasted_bytes / size_bytes) * 100, 2)
-        layer_efficiency = _normalize_score(
-            _get_candidate(layer, "efficiencyScore", "efficiency")
-        )
         layers.append(
             {
                 "index": index,
-                "layer_id": _get_candidate(
-                    layer,
-                    "digestId",
-                    "id",
-                    "digest",
-                    "layerId",
-                ),
-                "instruction": _get_candidate(
-                    layer,
-                    "command",
-                    "createdBy",
-                    "instruction",
-                    "description",
-                ),
+                "layer_id": layer.get("digestId"),
+                "instruction": layer.get("command"),
                 "size_bytes": size_bytes,
                 "wasted_bytes": layer_wasted_bytes,
                 "wasted_percent": layer_wasted_percent,
-                "efficiency_score": layer_efficiency,
+                "efficiency_score": None,
             }
         )
 
-    layer_count = (
-        _coerce_int(_get_candidate(report, "layerCount")) or len(raw_layers) or None
-    )
+    layer_count = len(raw_layers) or None
     meaningful_layers = sorted(
         (layer for layer in layers if (layer.get("wasted_bytes") or 0) > 0),
         key=lambda layer: layer.get("wasted_bytes") or 0,
         reverse=True,
     )
     inefficient_layer_count = len(meaningful_layers) or len(contributor_rows) or None
-
-    if wasted_percent is None and image_size and wasted_bytes is not None:
-        wasted_percent = round((wasted_bytes / image_size) * 100, 2)
 
     summary = {
         "image_size_bytes": image_size,

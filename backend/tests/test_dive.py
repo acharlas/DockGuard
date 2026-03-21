@@ -38,7 +38,7 @@ async def test_run_dive_reads_local_image_without_pulling():
         report = await run_dive(12, "nginx:latest")
 
     assert report["image"]["sizeBytes"] == 205000000
-    assert report["layers"][1]["wastedBytes"] == 8200000
+    assert report["layer"][1]["command"] == "RUN apk add curl bash"
 
 
 @pytest.mark.asyncio
@@ -84,11 +84,11 @@ def test_parse_dive_report_extracts_summary_and_layers(dive_report):
         "wasted_bytes": 18450000,
         "wasted_percent": 9.0,
         "layer_count": 4,
-        "inefficient_layer_count": 2,
+        "inefficient_layer_count": 3,
     }
     assert reduced_report is not None
-    assert reduced_report["layers"][0]["layer_id"] == "sha256:layer-3"
-    assert reduced_report["layers"][0]["instruction"] == "COPY . /app"
+    assert reduced_report["layers"][0]["layer_id"] == "sha256:layer-4"
+    assert reduced_report["layers"][0]["instruction"] == "RUN rm -rf /var/cache/apk/*"
 
 
 def test_parse_dive_report_supports_current_dive_schema():
@@ -230,15 +230,18 @@ def test_parse_dive_report_keeps_full_contributor_count_when_rows_are_truncated(
             "sizeBytes": 120_000_000,
             "efficiencyScore": 0.82,
             "inefficientBytes": 24_000_000,
+            "fileReference": [
+                {"count": 2, "sizeBytes": 100_000 + i, "file": f"/tmp/dup-{i}"}
+                for i in range(15)
+            ],
         },
-        "layers": [
+        "layer": [
             {
-                "digestId": f"sha256:layer-{index}",
-                "sizeBytes": 5_000_000,
-                "wastedBytes": 1_000_000 + index,
-                "command": f"RUN step {index}",
-            }
-            for index in range(15)
+                "index": 0,
+                "digestId": "sha256:base",
+                "sizeBytes": 120_000_000,
+                "command": "FROM base",
+            },
         ],
     }
 
