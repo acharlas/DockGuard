@@ -33,6 +33,16 @@ variable "oci_compartment_id" {
   type        = string
 }
 
+variable "oci_availability_domain" {
+  description = "Availability domain name (e.g. kIdk:EU-PARIS-1-AD-1). Find via: oci iam availability-domain list"
+  type        = string
+}
+
+variable "oci_instance_image_ocid" {
+  description = "OCI image OCID for Oracle Linux 9 ARM. Find at https://docs.oracle.com/iaas/images/"
+  type        = string
+}
+
 # --- Cloudflare ---
 
 variable "cloudflare_api_token" {
@@ -69,26 +79,14 @@ variable "ssh_allowed_cidr" {
   type        = string
 }
 
-# --- App ---
+# --- Tags ---
 
-variable "ghcr_image_backend" {
-  description = "Full GHCR image reference for backend (e.g. ghcr.io/acharlas/dockguard-backend:latest)"
-  type        = string
-}
-
-variable "ghcr_image_frontend" {
-  description = "Full GHCR image reference for frontend (e.g. ghcr.io/acharlas/dockguard-frontend:latest)"
-  type        = string
-}
-
-variable "db_password" {
-  description = "PostgreSQL password for the dockguard user"
-  type        = string
-  sensitive   = true
-}
-
-variable "grafana_admin_password" {
-  description = "Grafana admin password (separate from DB password)"
-  type        = string
-  sensitive   = true
+variable "project_tags" {
+  description = "Freeform tags applied to all resources"
+  type        = map(string)
+  default = {
+    project     = "dockguard"
+    environment = "production"
+    managed_by  = "terraform"
+  }
 }

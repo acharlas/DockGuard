@@ -3,17 +3,13 @@ output "vm_public_ip" {
   value       = oci_core_instance.app.public_ip
 }
 
-output "app_url" {
-  description = "DockGuard frontend URL"
-  value       = "https://dockguard.${var.domain}"
-}
-
-output "grafana_url" {
-  description = "Grafana dashboard URL"
-  value       = "https://grafana.${var.domain}"
-}
-
 output "tunnel_id" {
   description = "Cloudflare Tunnel ID"
   value       = cloudflare_zero_trust_tunnel_cloudflared.main.id
+}
+
+output "cloudflare_tunnel_token" {
+  description = "Cloudflare Tunnel token for cloudflared service install"
+  value       = cloudflare_zero_trust_tunnel_cloudflared.main.tunnel_token
+  sensitive   = true
 }
