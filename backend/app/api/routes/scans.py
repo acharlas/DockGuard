@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func, select, update
+from sqlalchemy import case, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
 
@@ -31,36 +31,13 @@ router = APIRouter()
 _scan_admission_lock = asyncio.Lock()
 
 
-def _summary_value_expression(severity: str):
-    return func.coalesce(ScanResult.summary[severity].as_integer(), 0)
-
-
 def _build_report_payload(report: dict | None) -> dict | None:
     if not isinstance(report, dict):
         return None
-
-    raw_layers = report.get("layers")
-    if not isinstance(raw_layers, list):
+    layers = report.get("layers")
+    if not isinstance(layers, list):
         return {"layers": []}
-
-    layers = []
-    for index, layer in enumerate(raw_layers):
-        if not isinstance(layer, dict):
-            continue
-        layers.append(
-            {
-                "index": layer.get("index", index),
-                "layer_id": layer.get("layer_id") or layer.get("id"),
-                "instruction": layer.get("instruction") or layer.get("createdBy"),
-                "size_bytes": layer.get("size_bytes") or layer.get("sizeBytes"),
-                "wasted_bytes": layer.get("wasted_bytes") or layer.get("wastedBytes"),
-                "wasted_percent": layer.get("wasted_percent")
-                or layer.get("wastedPercent"),
-                "efficiency_score": layer.get("efficiency_score")
-                or layer.get("efficiencyScore"),
-            }
-        )
-    return {"layers": layers}
+    return {"layers": [layer for layer in layers if isinstance(layer, dict)]}
 
 
 def _build_payload(scan: ScanResult) -> BuildOut | None:
@@ -261,34 +238,42 @@ async def cancel_scan_endpoint(scan_id: int, db: AsyncSession = Depends(get_db))
 
 @router.get("/stats", response_model=StatsOut)
 async def get_stats(db: AsyncSession = Depends(get_db)):
-    total = (
-        await db.execute(select(func.count()).select_from(ScanResult))
-    ).scalar() or 0
-    completed = (
-        await db.execute(
-            select(func.count())
-            .select_from(ScanResult)
-            .where(ScanResult.scan_status == ScanStatus.COMPLETED)
-        )
-    ).scalar() or 0
-    failed = (
-        await db.execute(
-            select(func.count())
-            .select_from(ScanResult)
-            .where(ScanResult.scan_status == ScanStatus.FAILED)
-        )
-    ).scalar() or 0
-
-    severity_result = await db.execute(
-        select(
-            func.coalesce(func.sum(_summary_value_expression("critical")), 0),
-            func.coalesce(func.sum(_summary_value_expression("high")), 0),
-            func.coalesce(func.sum(_summary_value_expression("medium")), 0),
-            func.coalesce(func.sum(_summary_value_expression("low")), 0),
-            func.coalesce(func.sum(_summary_value_expression("unknown")), 0),
-        ).where(ScanResult.scan_status == ScanStatus.COMPLETED)
+    _is_completed = case(
+        (ScanResult.scan_status == ScanStatus.COMPLETED, 1), else_=0
     )
-    critical, high, medium, low, unknown = severity_result.one()
+    _is_failed = case(
+        (ScanResult.scan_status == ScanStatus.FAILED, 1), else_=0
+    )
+
+    def _severity_when_completed(severity: str):
+        return func.coalesce(
+            func.sum(
+                case(
+                    (
+                        ScanResult.scan_status == ScanStatus.COMPLETED,
+                        ScanResult.summary[severity].as_integer(),
+                    ),
+                    else_=0,
+                )
+            ),
+            0,
+        )
+
+    counts_result = await db.execute(
+        select(
+            func.count(),
+            func.coalesce(func.sum(_is_completed), 0),
+            func.coalesce(func.sum(_is_failed), 0),
+            _severity_when_completed("critical"),
+            _severity_when_completed("high"),
+            _severity_when_completed("medium"),
+            _severity_when_completed("low"),
+            _severity_when_completed("unknown"),
+        ).select_from(ScanResult)
+    )
+    total, completed, failed, critical, high, medium, low, unknown = (
+        counts_result.one()
+    )
 
     top_image_result = await db.execute(
         select(
