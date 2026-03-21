@@ -238,12 +238,8 @@ async def cancel_scan_endpoint(scan_id: int, db: AsyncSession = Depends(get_db))
 
 @router.get("/stats", response_model=StatsOut)
 async def get_stats(db: AsyncSession = Depends(get_db)):
-    _is_completed = case(
-        (ScanResult.scan_status == ScanStatus.COMPLETED, 1), else_=0
-    )
-    _is_failed = case(
-        (ScanResult.scan_status == ScanStatus.FAILED, 1), else_=0
-    )
+    _is_completed = case((ScanResult.scan_status == ScanStatus.COMPLETED, 1), else_=0)
+    _is_failed = case((ScanResult.scan_status == ScanStatus.FAILED, 1), else_=0)
 
     def _severity_when_completed(severity: str):
         return func.coalesce(
@@ -271,9 +267,7 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
             _severity_when_completed("unknown"),
         ).select_from(ScanResult)
     )
-    total, completed, failed, critical, high, medium, low, unknown = (
-        counts_result.one()
-    )
+    total, completed, failed, critical, high, medium, low, unknown = counts_result.one()
 
     top_image_result = await db.execute(
         select(

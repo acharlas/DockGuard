@@ -255,10 +255,7 @@ def parse_dive_report(report: dict | None) -> tuple[dict | None, dict | None]:
         size_bytes = _coerce_int(layer.get("sizeBytes"))
         layer_wasted_bytes = derived_waste_by_layer.get(index)
         layer_wasted_percent = None
-        if (
-            layer_wasted_bytes is not None
-            and size_bytes
-        ):
+        if layer_wasted_bytes is not None and size_bytes:
             layer_wasted_percent = round((layer_wasted_bytes / size_bytes) * 100, 2)
         layers.append(
             {

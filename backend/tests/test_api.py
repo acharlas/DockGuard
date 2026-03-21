@@ -226,7 +226,20 @@ async def test_get_scan_detail(
             "layer_count": 4,
             "inefficient_layer_count": 2,
         },
-        build_report={"layers": dive_report["layers"][:2]},
+        build_report={
+            "layers": [
+                {
+                    "index": ly["index"],
+                    "layer_id": ly["digestId"],
+                    "instruction": ly["command"],
+                    "size_bytes": ly["sizeBytes"],
+                    "wasted_bytes": None,
+                    "wasted_percent": None,
+                    "efficiency_score": None,
+                }
+                for ly in dive_report["layer"][:2]
+            ]
+        },
         summary={"critical": 1, "high": 1, "medium": 1, "low": 1, "unknown": 0},
         raw_report=trivy_report,
     )
