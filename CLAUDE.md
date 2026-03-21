@@ -40,11 +40,23 @@ npm run lint                       # ESLint
 npm test                           # Jest + React Testing Library
 ```
 
-### Infrastructure
+### Infrastructure (Terraform)
 ```bash
 cd terraform
-terraform init
-terraform validate
+terraform init                     # Initialize S3 backend
+terraform validate                 # Check syntax
+terraform plan                     # Preview changes
+terraform apply                    # Apply changes
+```
+
+### Configuration (Ansible)
+```bash
+cd ansible
+ansible-playbook playbook.yml                        # Full provision
+ansible-playbook playbook.yml --tags deploy           # App deploy only (pull + restart)
+ansible-playbook playbook.yml --tags cloudflared      # Cloudflared only
+ansible-playbook playbook.yml --syntax-check          # Validate syntax
+ansible-playbook playbook.yml --check                 # Dry run
 ```
 
 ## Architecture
@@ -63,13 +75,14 @@ User → Cloudflare Edge (SSL/DDoS) → Cloudflare Tunnel → Oracle ARM VM (Alw
 ```
 
 **CI/CD pipeline (GitHub Actions):**
-- `ci.yml`: lint → test → build (ARM64) → Trivy security scan → push to GHCR → deploy app via SSH
-- `deploy.yml`: terraform plan on PR → terraform apply on merge (path-filtered to `terraform/`)
+- `ci.yml`: lint → test → build (ARM64) → Trivy security scan → push to GHCR → deploy app via Ansible (`--tags deploy`)
+- `deploy.yml`: terraform plan on PR → terraform apply on merge → Ansible full provision (path-filtered to `terraform/` and `ansible/`)
 
 **Infrastructure:**
 - Oracle Cloud Always Free: ARM VM (4 OCPU, 24GB RAM), VCN, subnet
 - Cloudflare: DNS, SSL, DDoS protection, Tunnel (zero-trust ingress)
-- Terraform Cloud: remote state
+- OCI Object Storage: remote state (S3-compatible)
+- Ansible: VM configuration management (cloudflared, Docker Compose stack)
 - No public HTTP ports — all ingress via Cloudflare Tunnel
 
 ### Backend structure (`backend/app/`)
@@ -116,7 +129,7 @@ At the start of each session, specify:
 
 ## Environment Variables
 
-### Backend (set in cloud-init docker-compose template)
+### Backend (set in Ansible docker-compose template)
 - `DATABASE_URL` — PostgreSQL connection string
 - `CORS_ORIGINS` — JSON array of allowed origins (production: `["https://dockguard.acharlas.dev"]`)
 - `REDIS_URL` — Redis connection string
@@ -124,12 +137,19 @@ At the start of each session, specify:
 - `MAX_PENDING_SCANS` — Max queued scans (default: 25)
 
 ### Terraform Variables
-See `terraform/terraform.tfvars.example` for the full list of required variables.
+Passed via `TF_VAR_*` environment variables in GitHub Actions. See `terraform/variables.tf` for the full list.
 
-### GitHub Secrets
-- `TF_API_TOKEN` — Terraform Cloud token
-- `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` — Cloudflare Access service token
-- `VM_SSH_PRIVATE_KEY` — SSH key for deploy
+### GitHub Secrets (repository-level)
+- `OCI_*` — Oracle Cloud credentials and config (tenancy, user, fingerprint, private key, region, compartment, AD, image OCID)
+- `OCI_S3_ACCESS_KEY` / `OCI_S3_SECRET_KEY` — Terraform state backend auth
+- `CLOUDFLARE_*` — Cloudflare API token, account ID, zone ID
+- `SSH_PUBLIC_KEY` / `SSH_ALLOWED_CIDR` — VM SSH access
+
+### GitHub Secrets (`production` environment)
+- `DB_PASSWORD` — PostgreSQL password (passed to Ansible)
+- `GRAFANA_ADMIN_PASSWORD` — Grafana admin password (passed to Ansible)
+- `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` — Cloudflare Access service token (Ansible SSH proxy)
+- `VM_SSH_PRIVATE_KEY` — SSH key for Ansible
 
 ## Security Notes
 
