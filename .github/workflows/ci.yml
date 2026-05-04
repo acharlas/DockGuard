@@ -307,7 +307,6 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           ANSIBLE_PRIVATE_KEY_FILE: ~/.ssh/deploy_key
-        run: |
-          ansible-playbook playbook.yml --tags deploy --extra-vars "\
-            db_password=${{ secrets.DB_PASSWORD }} \
-            grafana_admin_password=${{ secrets.GRAFANA_ADMIN_PASSWORD }}"
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+        run: ansible-playbook playbook.yml --tags deploy

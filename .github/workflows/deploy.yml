@@ -12,6 +12,10 @@ on:
       - "terraform/**"
       - "ansible/**"
 
+concurrency:
+  group: deploy-infra
+  cancel-in-progress: false
+
 jobs:
   # --- Terraform Plan (runs on PRs) ---
   terraform-plan:
@@ -23,6 +27,19 @@ jobs:
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.OCI_S3_ACCESS_KEY }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_S3_SECRET_KEY }}
+      TF_VAR_oci_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+      TF_VAR_oci_user_ocid: ${{ secrets.OCI_USER_OCID }}
+      TF_VAR_oci_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+      TF_VAR_oci_private_key: ${{ secrets.OCI_PRIVATE_KEY }}
+      TF_VAR_oci_region: ${{ secrets.OCI_REGION }}
+      TF_VAR_oci_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
+      TF_VAR_oci_availability_domain: ${{ secrets.OCI_AVAILABILITY_DOMAIN }}
+      TF_VAR_oci_instance_image_ocid: ${{ secrets.OCI_INSTANCE_IMAGE_OCID }}
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+      TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      TF_VAR_ssh_allowed_cidr: ${{ secrets.SSH_ALLOWED_CIDR }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,20 +53,6 @@ jobs:
 
       - name: Terraform Plan
         working-directory: terraform
-        env:
-          TF_VAR_oci_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
-          TF_VAR_oci_user_ocid: ${{ secrets.OCI_USER_OCID }}
-          TF_VAR_oci_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
-          TF_VAR_oci_private_key: ${{ secrets.OCI_PRIVATE_KEY }}
-          TF_VAR_oci_region: ${{ secrets.OCI_REGION }}
-          TF_VAR_oci_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
-          TF_VAR_oci_availability_domain: ${{ secrets.OCI_AVAILABILITY_DOMAIN }}
-          TF_VAR_oci_instance_image_ocid: ${{ secrets.OCI_INSTANCE_IMAGE_OCID }}
-          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          TF_VAR_ssh_allowed_cidr: ${{ secrets.SSH_ALLOWED_CIDR }}
         run: terraform plan -no-color -out=tfplan 2>&1 | tee plan_output.txt
 
       - name: Post plan to PR
@@ -77,17 +80,13 @@ jobs:
               }
             }
 
-            const output = `#### Terraform Plan 📋
-            \`\`\`
-            ${truncated}
-            \`\`\`
-            *Triggered by @${{ github.actor }} on \`${{ github.event.pull_request.head.ref }}\`*`;
+            const body = `#### Terraform Plan\n\`\`\`\n${truncated}\n\`\`\`\n*Triggered by @${{ github.actor }} on \`${{ github.event.pull_request.head.ref }}\`*`;
 
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: output.substring(0, 65536)
+              body: body.substring(0, 65536)
             });
 
   # --- Terraform Apply (runs on push to main) ---
@@ -100,6 +99,19 @@ jobs:
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.OCI_S3_ACCESS_KEY }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_S3_SECRET_KEY }}
+      TF_VAR_oci_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+      TF_VAR_oci_user_ocid: ${{ secrets.OCI_USER_OCID }}
+      TF_VAR_oci_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+      TF_VAR_oci_private_key: ${{ secrets.OCI_PRIVATE_KEY }}
+      TF_VAR_oci_region: ${{ secrets.OCI_REGION }}
+      TF_VAR_oci_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
+      TF_VAR_oci_availability_domain: ${{ secrets.OCI_AVAILABILITY_DOMAIN }}
+      TF_VAR_oci_instance_image_ocid: ${{ secrets.OCI_INSTANCE_IMAGE_OCID }}
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+      TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      TF_VAR_ssh_allowed_cidr: ${{ secrets.SSH_ALLOWED_CIDR }}
     steps:
       - uses: actions/checkout@v4
 
@@ -114,39 +126,11 @@ jobs:
 
       - name: Terraform Apply
         working-directory: terraform
-        env:
-          TF_VAR_oci_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
-          TF_VAR_oci_user_ocid: ${{ secrets.OCI_USER_OCID }}
-          TF_VAR_oci_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
-          TF_VAR_oci_private_key: ${{ secrets.OCI_PRIVATE_KEY }}
-          TF_VAR_oci_region: ${{ secrets.OCI_REGION }}
-          TF_VAR_oci_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
-          TF_VAR_oci_availability_domain: ${{ secrets.OCI_AVAILABILITY_DOMAIN }}
-          TF_VAR_oci_instance_image_ocid: ${{ secrets.OCI_INSTANCE_IMAGE_OCID }}
-          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          TF_VAR_ssh_allowed_cidr: ${{ secrets.SSH_ALLOWED_CIDR }}
         run: terraform apply -auto-approve
 
       - name: Get tunnel token
         id: tunnel
         working-directory: terraform
-        env:
-          TF_VAR_oci_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
-          TF_VAR_oci_user_ocid: ${{ secrets.OCI_USER_OCID }}
-          TF_VAR_oci_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
-          TF_VAR_oci_private_key: ${{ secrets.OCI_PRIVATE_KEY }}
-          TF_VAR_oci_region: ${{ secrets.OCI_REGION }}
-          TF_VAR_oci_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
-          TF_VAR_oci_availability_domain: ${{ secrets.OCI_AVAILABILITY_DOMAIN }}
-          TF_VAR_oci_instance_image_ocid: ${{ secrets.OCI_INSTANCE_IMAGE_OCID }}
-          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          TF_VAR_ssh_allowed_cidr: ${{ secrets.SSH_ALLOWED_CIDR }}
         run: |
           TUNNEL_TOKEN=$(terraform output -raw cloudflare_tunnel_token)
           echo "::add-mask::$TUNNEL_TOKEN"
@@ -182,8 +166,7 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           ANSIBLE_PRIVATE_KEY_FILE: ~/.ssh/deploy_key
-        run: |
-          ansible-playbook playbook.yml --extra-vars "\
-            cloudflare_tunnel_token=${{ needs.terraform-apply.outputs.tunnel_token }} \
-            db_password=${{ secrets.DB_PASSWORD }} \
-            grafana_admin_password=${{ secrets.GRAFANA_ADMIN_PASSWORD }}"
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+          CLOUDFLARE_TUNNEL_TOKEN: ${{ needs.terraform-apply.outputs.tunnel_token }}
+        run: ansible-playbook playbook.yml

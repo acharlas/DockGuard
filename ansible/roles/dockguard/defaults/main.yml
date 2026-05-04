@@ -3,7 +3,12 @@ ghcr_image_backend: "ghcr.io/acharlas/dockguard-backend:latest"
 ghcr_image_frontend: "ghcr.io/acharlas/dockguard-frontend:latest"
 app_dir: /opt/dockguard
 
-# Secrets — must be passed via --extra-vars in CI:
-# db_password:
-# grafana_admin_password:
-# cloudflare_tunnel_token:
+# Secrets — passed via environment variables in CI, accessed with lookup('env', ...).
+# mandatory filter ensures a clear failure if the variable is unset.
+# Can still be overridden with --extra-vars for local usage.
+db_password: "{{ lookup('env', 'DB_PASSWORD') | mandatory }}"
+grafana_admin_password: "{{ lookup('env', 'GRAFANA_ADMIN_PASSWORD') | mandatory }}"
+# No | mandatory here — this variable is only needed for --tags cloudflared,
+# but Ansible resolves all defaults eagerly regardless of active tags.
+# Validated via assert task in cloudflared.yml instead.
+cloudflare_tunnel_token: "{{ lookup('env', 'CLOUDFLARE_TUNNEL_TOKEN') | default('') }}"

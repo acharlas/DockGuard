@@ -14,7 +14,6 @@
     owner: opc
     group: opc
     mode: "0644"
-  notify: restart compose
 
 - name: Deploy prometheus.yml
   ansible.builtin.copy:
@@ -23,15 +22,6 @@
     owner: opc
     group: opc
     mode: "0644"
-  notify: restart compose
-
-- name: Deploy deploy.sh
-  ansible.builtin.copy:
-    src: deploy.sh
-    dest: "{{ app_dir }}/deploy.sh"
-    owner: opc
-    group: opc
-    mode: "0755"
 
 - name: Pull Docker images
   ansible.builtin.command:
