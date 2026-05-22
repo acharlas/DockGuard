@@ -6,11 +6,13 @@ on:
     paths:
       - "terraform/**"
       - "ansible/**"
+      - ".github/workflows/**"
   push:
     branches: [main]
     paths:
       - "terraform/**"
       - "ansible/**"
+      - ".github/workflows/**"
 
 concurrency:
   group: deploy-infra
