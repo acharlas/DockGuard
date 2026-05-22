@@ -39,7 +39,7 @@ variable "oci_availability_domain" {
 }
 
 variable "oci_instance_image_ocid" {
-  description = "OCI image OCID for Oracle Linux 9 ARM. Find at https://docs.oracle.com/iaas/images/"
+  description = "OCI image OCID for Ubuntu Server 22.04/24.04 LTS (x86_64). Find at https://docs.oracle.com/iaas/images/"
   type        = string
 }
 

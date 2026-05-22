@@ -1,5 +1,5 @@
 output "vm_public_ip" {
-  description = "Public IP of the Oracle ARM VM (SSH access only)"
+  description = "Public IP of the Oracle VM (SSH access only)"
   value       = oci_core_instance.app.public_ip
 }
 
@@ -12,4 +12,9 @@ output "cloudflare_tunnel_token" {
   description = "Cloudflare Tunnel token for cloudflared service install"
   value       = cloudflare_zero_trust_tunnel_cloudflared.main.tunnel_token
   sensitive   = true
+}
+
+output "domain" {
+  description = "Base domain name"
+  value       = var.domain
 }
