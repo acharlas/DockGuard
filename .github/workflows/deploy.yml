@@ -49,7 +49,14 @@ jobs:
 
       - name: Terraform Init
         working-directory: terraform
-        run: terraform init
+        env:
+          OCI_NAMESPACE: ${{ vars.OCI_NAMESPACE }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+        run: |
+          terraform init \
+            -backend-config="endpoints={s3=\"https://${OCI_NAMESPACE}.compat.objectstorage.${OCI_REGION}.oraclecloud.com\"}" \
+            -backend-config="access_key=${{ secrets.OCI_S3_ACCESS_KEY }}" \
+            -backend-config="secret_key=${{ secrets.OCI_S3_SECRET_KEY }}"
 
       - name: Terraform Plan
         working-directory: terraform
@@ -96,6 +103,7 @@ jobs:
     environment: production
     outputs:
       tunnel_token: ${{ steps.tunnel.outputs.token }}
+      domain: ${{ steps.domain.outputs.domain }}
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.OCI_S3_ACCESS_KEY }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_S3_SECRET_KEY }}
@@ -122,7 +130,14 @@ jobs:
 
       - name: Terraform Init
         working-directory: terraform
-        run: terraform init
+        env:
+          OCI_NAMESPACE: ${{ vars.OCI_NAMESPACE }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+        run: |
+          terraform init \
+            -backend-config="endpoints={s3=\"https://${OCI_NAMESPACE}.compat.objectstorage.${OCI_REGION}.oraclecloud.com\"}" \
+            -backend-config="access_key=${{ secrets.OCI_S3_ACCESS_KEY }}" \
+            -backend-config="secret_key=${{ secrets.OCI_S3_SECRET_KEY }}"
 
       - name: Terraform Apply
         working-directory: terraform
@@ -135,6 +150,13 @@ jobs:
           TUNNEL_TOKEN=$(terraform output -raw cloudflare_tunnel_token)
           echo "::add-mask::$TUNNEL_TOKEN"
           echo "token=$TUNNEL_TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Get domain
+        id: domain
+        working-directory: terraform
+        run: |
+          DOMAIN=$(terraform output -raw domain)
+          echo "domain=$DOMAIN" >> "$GITHUB_OUTPUT"
 
   # --- Ansible Provision (runs after terraform apply) ---
   ansible-provision:
@@ -169,4 +191,18 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
           CLOUDFLARE_TUNNEL_TOKEN: ${{ needs.terraform-apply.outputs.tunnel_token }}
-        run: ansible-playbook playbook.yml
+          ANSIBLE_SSH_ARGS: '-o ProxyCommand="cloudflared access ssh --hostname %h" -o StrictHostKeyChecking=no'
+        run: ansible-playbook playbook.yml --tags deploy
+
+      - name: Wait for stack to be healthy
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf --max-time 10 "https://dockguard.${{ needs.terraform-apply.outputs.domain }}/api/v1/health"; then
+              echo "✅ Health check passed"
+              exit 0
+            fi
+            echo "⏳ Waiting for health check... ($i/30)"
+            sleep 10
+          done
+          echo "❌ Health check failed after 5 minutes"
+          exit 1

@@ -1,13 +1,14 @@
 terraform {
   required_version = ">= 1.7"
 
+  # Local state is used for manual execution.
+  # To switch to OCI S3 backend for CI/CD, uncomment the backend block below
+  # and run: terraform init -reconfigure -backend-config="..."
+  #
   backend "s3" {
     bucket                      = "dockguard-tfstate"
     key                         = "prod/terraform.tfstate"
-    region                      = "eu-paris-1"
-    endpoints = {
-      s3 = "https://<namespace>.compat.objectstorage.eu-paris-1.oraclecloud.com"
-    }
+    region                      = "eu-frankfurt-1"
     skip_region_validation      = true
     skip_credentials_validation = true
     skip_metadata_api_check     = true
