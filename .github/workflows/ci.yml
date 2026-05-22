@@ -287,13 +287,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+          terraform_wrapper: false
+
       - name: Install Ansible
         run: pip install ansible
-
-      - name: Install cloudflared
-        run: |
-          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
-          chmod +x /usr/local/bin/cloudflared
 
       - name: Setup SSH key
         run: |
@@ -301,24 +301,36 @@ jobs:
           echo "${{ secrets.VM_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-      - name: Setup cloudflared SSH proxy
+      - name: Get VM public IP from Terraform state
+        id: vm_ip
+        working-directory: terraform
         env:
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.OCI_S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_S3_SECRET_KEY }}
+          OCI_NAMESPACE: ${{ vars.OCI_NAMESPACE }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+          ACCESS_KEY: ${{ secrets.OCI_S3_ACCESS_KEY }}
+          SECRET_KEY: ${{ secrets.OCI_S3_SECRET_KEY }}
         run: |
-          cat > /tmp/cloudflared-ssh-proxy <<'EOF'
-          #!/bin/bash
-          exec /usr/local/bin/cloudflared access ssh --hostname "$1" --id "$CF_ACCESS_CLIENT_ID" --secret "$CF_ACCESS_CLIENT_SECRET"
+          cat > backend.hcl <<EOF
+          endpoints = {
+            s3 = "https://${OCI_NAMESPACE}.compat.objectstorage.${OCI_REGION}.oraclecloud.com"
+          }
+          access_key = "${ACCESS_KEY}"
+          secret_key = "${SECRET_KEY}"
+          skip_s3_checksum = true
           EOF
-          chmod +x /tmp/cloudflared-ssh-proxy
+          terraform init -backend-config=backend.hcl
+          VM_IP=$(terraform output -raw vm_public_ip)
+          echo "ip=$VM_IP" >> "$GITHUB_OUTPUT"
 
       - name: Deploy via Ansible
         working-directory: ansible
         env:
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           ANSIBLE_PRIVATE_KEY_FILE: ~/.ssh/deploy_key
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
-          ANSIBLE_SSH_ARGS: '-o ProxyCommand="/tmp/cloudflared-ssh-proxy %h" -o StrictHostKeyChecking=no'
-        run: ansible-playbook playbook.yml --tags deploy
+        run: |
+          echo "[production]" > /tmp/ci_inventory.ini
+          echo "${{ steps.vm_ip.outputs.ip }} ansible_user=ubuntu" >> /tmp/ci_inventory.ini
+          ansible-playbook playbook.yml --tags deploy -i /tmp/ci_inventory.ini
