@@ -40,7 +40,10 @@ variable "ssh_allowed_cidr" {
   default = "0.0.0.0/0"
 }
 
-variable "cloudflare_ssh_service_token_id" { type = string }
+variable "cloudflare_ssh_service_token_id" {
+  type        = string
+  description = "Cloudflare Access Service Token Client ID (e.g. xxxxxxxx.access)"
+}
 
 variable "project_tags" {
   type = map(string)
