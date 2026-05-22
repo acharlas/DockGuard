@@ -104,6 +104,7 @@ jobs:
     outputs:
       tunnel_token: ${{ steps.tunnel.outputs.token }}
       domain: ${{ steps.domain.outputs.domain }}
+      vm_public_ip: ${{ steps.vm_ip.outputs.ip }}
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.OCI_S3_ACCESS_KEY }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_S3_SECRET_KEY }}
@@ -158,6 +159,13 @@ jobs:
           DOMAIN=$(terraform output -raw domain)
           echo "domain=$DOMAIN" >> "$GITHUB_OUTPUT"
 
+      - name: Get VM public IP
+        id: vm_ip
+        working-directory: terraform
+        run: |
+          VM_IP=$(terraform output -raw vm_public_ip)
+          echo "ip=$VM_IP" >> "$GITHUB_OUTPUT"
+
   # --- Ansible Provision (runs after terraform apply) ---
   ansible-provision:
     needs: [terraform-apply]
@@ -182,7 +190,21 @@ jobs:
           echo "${{ secrets.VM_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-      - name: Run Ansible playbook
+      - name: Wait for DNS propagation
+        run: |
+          for i in $(seq 1 60); do
+            if nslookup ssh.dockguard.${{ needs.terraform-apply.outputs.domain }} >/dev/null 2>&1; then
+              echo "✅ DNS resolved for ssh.dockguard.${{ needs.terraform-apply.outputs.domain }}"
+              exit 0
+            fi
+            echo "⏳ Waiting for DNS propagation... ($i/60)"
+            sleep 10
+          done
+          echo "⚠️ DNS not resolved after 10 minutes, will try fallback via public IP"
+
+      - name: Run Ansible playbook via tunnel
+        id: ansible_tunnel
+        continue-on-error: true
         working-directory: ansible
         env:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
@@ -193,6 +215,19 @@ jobs:
           CLOUDFLARE_TUNNEL_TOKEN: ${{ needs.terraform-apply.outputs.tunnel_token }}
           ANSIBLE_SSH_ARGS: '-o ProxyCommand="cloudflared access ssh --hostname %h" -o StrictHostKeyChecking=no'
         run: ansible-playbook playbook.yml --tags deploy
+
+      - name: Run Ansible playbook via public IP (fallback)
+        if: steps.ansible_tunnel.outcome == 'failure'
+        working-directory: ansible
+        env:
+          ANSIBLE_PRIVATE_KEY_FILE: ~/.ssh/deploy_key
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+          CLOUDFLARE_TUNNEL_TOKEN: ${{ needs.terraform-apply.outputs.tunnel_token }}
+        run: |
+          echo "[production]" > /tmp/ci_inventory.ini
+          echo "${{ needs.terraform-apply.outputs.vm_public_ip }} ansible_user=ubuntu" >> /tmp/ci_inventory.ini
+          ansible-playbook playbook.yml --tags deploy -i /tmp/ci_inventory.ini
 
       - name: Wait for stack to be healthy
         run: |
