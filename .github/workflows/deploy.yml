@@ -154,6 +154,7 @@ jobs:
       TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
       TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
       TF_VAR_ssh_allowed_cidr: ${{ secrets.SSH_ALLOWED_CIDR }}
+      TF_VAR_cloudflare_ssh_service_token_id: ${{ secrets.CLOUDFLARE_SSH_SERVICE_TOKEN_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -266,38 +267,7 @@ jobs:
           echo "${{ secrets.VM_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-      - name: Show runner public IP
-        run: |
-          RUNNER_IP=$(curl -s https://api.ipify.org)
-          echo "GitHub Actions runner public IP: $RUNNER_IP"
-          echo "If you want the public IP fallback to work, add $RUNNER_IP/32 to your OCI security list (or set ssh_allowed_cidr = 0.0.0.0/0)"
-
-      - name: Wait for DNS propagation
-        run: |
-          for i in $(seq 1 60); do
-            if nslookup ssh.dockguard.${{ needs.terraform-apply.outputs.domain }} >/dev/null 2>&1; then
-              echo "✅ DNS resolved for ssh.dockguard.${{ needs.terraform-apply.outputs.domain }}"
-              exit 0
-            fi
-            echo "⏳ Waiting for DNS propagation... ($i/60)"
-            sleep 10
-          done
-          echo "⚠️ DNS not resolved after 10 minutes, will try fallback via public IP"
-
-      - name: Setup cloudflared SSH proxy
-        env:
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-        run: |
-          cat > /tmp/cloudflared-ssh-proxy <<'EOF'
-          #!/bin/bash
-          exec /usr/local/bin/cloudflared access ssh --hostname "$1" --id "$CF_ACCESS_CLIENT_ID" --secret "$CF_ACCESS_CLIENT_SECRET"
-          EOF
-          chmod +x /tmp/cloudflared-ssh-proxy
-
-      - name: Run Ansible playbook via tunnel
-        id: ansible_tunnel
-        continue-on-error: true
+      - name: Run Ansible playbook via Cloudflare Tunnel
         working-directory: ansible
         env:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
@@ -306,33 +276,13 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
           CLOUDFLARE_TUNNEL_TOKEN: ${{ needs.terraform-apply.outputs.tunnel_token }}
-          ANSIBLE_SSH_ARGS: '-o ProxyCommand="/tmp/cloudflared-ssh-proxy %h" -o StrictHostKeyChecking=no'
-        run: ansible-playbook playbook.yml --tags deploy
-
-      - name: Run Ansible playbook via public IP (fallback)
-        if: steps.ansible_tunnel.outcome == 'failure'
-        id: ansible_public
-        continue-on-error: true
-        working-directory: ansible
-        env:
-          ANSIBLE_PRIVATE_KEY_FILE: ~/.ssh/deploy_key
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
-          CLOUDFLARE_TUNNEL_TOKEN: ${{ needs.terraform-apply.outputs.tunnel_token }}
+          ANSIBLE_HOST_KEY_CHECKING: "False"
         run: |
+          export SSH_PROXY="/usr/local/bin/cloudflared access ssh --hostname %h --id \"$CF_ACCESS_CLIENT_ID\" --secret \"$CF_ACCESS_CLIENT_SECRET\""
           echo "[production]" > /tmp/ci_inventory.ini
-          echo "${{ needs.terraform-apply.outputs.vm_public_ip }} ansible_user=ubuntu" >> /tmp/ci_inventory.ini
-          ansible-playbook playbook.yml --tags deploy -i /tmp/ci_inventory.ini
-
-      - name: Fail if both SSH methods failed
-        if: steps.ansible_tunnel.outcome == 'failure' && steps.ansible_public.outcome == 'failure'
-        run: |
-          echo "❌ Both Cloudflare Tunnel SSH and public IP SSH failed"
-          echo "   - Tunnel: Verify CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET secrets"
-          echo "   - Public IP: GitHub Actions runner IP is not in ssh_allowed_cidr"
-          echo "     Get the runner IP from the 'Show runner public IP' step above"
-          echo "     and add it to your OCI security list, or set ssh_allowed_cidr = 0.0.0.0/0"
-          exit 1
+          echo "ssh.dockguard.${{ needs.terraform-apply.outputs.domain }} ansible_user=ubuntu" >> /tmp/ci_inventory.ini
+          ansible-playbook playbook.yml --tags deploy -i /tmp/ci_inventory.ini \
+            --ssh-common-args="-o ProxyCommand='$SSH_PROXY' -o StrictHostKeyChecking=no"
 
       - name: Wait for stack to be healthy
         run: |

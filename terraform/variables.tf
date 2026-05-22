@@ -75,7 +75,13 @@ variable "ssh_public_key" {
 }
 
 variable "ssh_allowed_cidr" {
-  description = "CIDR block allowed to SSH into the VM"
+  description = "CIDR block allowed to SSH into the VM. Default 0.0.0.0/0 enables GitHub Actions CI runners (dynamic IPs). Restrict for local-only access if desired."
+  type        = string
+  default     = "0.0.0.0/0"
+}
+
+variable "cloudflare_ssh_service_token_id" {
+  description = "Cloudflare Access Service Token ID for CI SSH (create manually in dashboard)"
   type        = string
 }
 
