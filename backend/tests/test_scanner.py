@@ -43,7 +43,7 @@ async def test_scan_success_transitions(
                         "layer_count": 4,
                         "inefficient_layer_count": 2,
                     },
-                    report={"layers": dive_report["layers"][:2]},
+                    report={"layers": dive_report["layer"][:2]},
                 )
             ),
         ),
@@ -245,7 +245,7 @@ async def test_scan_cancelled_before_success_persistence(
                 "layer_count": 4,
                 "inefficient_layer_count": 2,
             },
-            report={"layers": dive_report["layers"][:2]},
+            report={"layers": dive_report["layer"][:2]},
         )
 
     with (

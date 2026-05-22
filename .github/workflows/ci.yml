@@ -6,12 +6,18 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate-terraform:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
       - run: terraform fmt -check
         working-directory: terraform
       - run: terraform init -backend=false
@@ -122,6 +128,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
       - name: Build backend dev image
@@ -130,6 +137,7 @@ jobs:
           context: ./backend
           target: dev
           push: false
+          platforms: linux/amd64
           tags: dockguard-backend-dev:${{ github.sha }}
 
       - name: Build backend image
@@ -137,6 +145,7 @@ jobs:
         with:
           context: ./backend
           push: false
+          platforms: linux/amd64
           tags: dockguard-backend:${{ github.sha }}
           outputs: type=docker,dest=/tmp/backend.tar
 
@@ -146,6 +155,7 @@ jobs:
           context: ./frontend
           target: dev
           push: false
+          platforms: linux/amd64
           tags: dockguard-frontend-dev:${{ github.sha }}
 
       - name: Build frontend image
@@ -153,6 +163,7 @@ jobs:
         with:
           context: ./frontend
           push: false
+          platforms: linux/amd64
           tags: dockguard-frontend:${{ github.sha }}
           outputs: type=docker,dest=/tmp/frontend.tar
 
@@ -179,7 +190,7 @@ jobs:
 
       # Full scan → SARIF for GitHub Security tab (all vuln types, never blocks)
       - name: Scan backend image (SARIF)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.29.0
         with:
           image-ref: dockguard-backend:${{ github.sha }}
           format: sarif
@@ -188,7 +199,7 @@ jobs:
           severity: CRITICAL,HIGH,MEDIUM,LOW
 
       - name: Scan frontend image (SARIF)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.29.0
         with:
           image-ref: dockguard-frontend:${{ github.sha }}
           format: sarif
@@ -213,7 +224,7 @@ jobs:
       # Security gate: fail on CRITICAL app-library CVEs we can actually fix.
       # OS CVEs in the base image are tracked above and handled via base image updates.
       - name: Gate on backend app library CVEs
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.29.0
         with:
           image-ref: dockguard-backend:${{ github.sha }}
           format: table
@@ -223,7 +234,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Gate on frontend app library CVEs
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.29.0
         with:
           image-ref: dockguard-frontend:${{ github.sha }}
           format: table
@@ -266,3 +277,36 @@ jobs:
           docker tag dockguard-frontend:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/dockguard-frontend:latest
           docker push ghcr.io/${{ github.repository_owner }}/dockguard-frontend:${{ github.sha }}
           docker push ghcr.io/${{ github.repository_owner }}/dockguard-frontend:latest
+
+  deploy-app:
+    needs: [push-registry]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ansible
+        run: pip install ansible
+
+      - name: Install cloudflared
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+          chmod +x /usr/local/bin/cloudflared
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VM_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Deploy via Ansible
+        working-directory: ansible
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          ANSIBLE_PRIVATE_KEY_FILE: ~/.ssh/deploy_key
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+        run: ansible-playbook playbook.yml --tags deploy

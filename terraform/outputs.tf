@@ -1,14 +1,20 @@
-output "app_public_ip" {
-  description = "Public IP address of the EC2 application server"
-  value       = aws_instance.app.public_ip
+output "vm_public_ip" {
+  description = "Public IP of the Oracle VM (SSH access only)"
+  value       = oci_core_instance.app.public_ip
 }
 
-output "app_public_dns" {
-  description = "Public DNS hostname of the EC2 application server"
-  value       = aws_instance.app.public_dns
+output "tunnel_id" {
+  description = "Cloudflare Tunnel ID"
+  value       = cloudflare_zero_trust_tunnel_cloudflared.main.id
 }
 
-output "db_endpoint" {
-  description = "RDS PostgreSQL endpoint (host:port)"
-  value       = aws_db_instance.postgres.endpoint
+output "cloudflare_tunnel_token" {
+  description = "Cloudflare Tunnel token for cloudflared service install"
+  value       = cloudflare_zero_trust_tunnel_cloudflared.main.tunnel_token
+  sensitive   = true
+}
+
+output "domain" {
+  description = "Base domain name"
+  value       = var.domain
 }

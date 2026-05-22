@@ -46,6 +46,9 @@ out/
 terraform.tfvars
 # Note: .terraform.lock.hcl is intentionally tracked (pins provider versions)
 
+# Ansible
+*.retry
+
 # Coverage
 htmlcov/
 .coverage
@@ -64,3 +67,4 @@ skills-lock.json
 
 # Next.js / frontend tooling
 .swc/
+docs/superpowers/

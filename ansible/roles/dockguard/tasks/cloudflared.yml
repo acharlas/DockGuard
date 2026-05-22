@@ -1,0 +1,30 @@
+---
+- name: Check if cloudflared is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/cloudflared
+  register: cloudflared_binary
+
+- name: Validate tunnel token is set
+  ansible.builtin.assert:
+    that: cloudflare_tunnel_token | length > 0
+    fail_msg: "cloudflare_tunnel_token is required for cloudflared setup (set CLOUDFLARE_TUNNEL_TOKEN env var)"
+
+- name: Download cloudflared binary
+  ansible.builtin.get_url:
+    url: https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+    dest: /usr/local/bin/cloudflared
+    mode: "0755"
+  register: cloudflared_download
+  when: not cloudflared_binary.stat.exists
+
+- name: Install cloudflared as systemd service
+  ansible.builtin.command:
+    cmd: cloudflared service install "{{ cloudflare_tunnel_token }}"
+    creates: /etc/systemd/system/cloudflared.service
+  notify: restart cloudflared
+
+- name: Ensure cloudflared service is enabled and running
+  ansible.builtin.systemd:
+    name: cloudflared
+    enabled: true
+    state: started

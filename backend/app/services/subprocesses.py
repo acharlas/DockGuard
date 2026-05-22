@@ -39,6 +39,12 @@ async def _stream_stderr(
         lines.extend(line[:remaining])
         truncated = truncated or len(line) > remaining
     if truncated:
+        logger.warning(
+            "Scan %d [%s] stderr truncated at %d bytes",
+            scan_id,
+            label,
+            _MAX_CAPTURED_STDERR_BYTES,
+        )
         lines.extend(b"\n... stderr truncated ...")
     return bytes(lines)
 

@@ -1,0 +1,208 @@
+name: DockGuard Deploy
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "terraform/**"
+      - "ansible/**"
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+      - "ansible/**"
+
+concurrency:
+  group: deploy-infra
+  cancel-in-progress: false
+
+jobs:
+  # --- Terraform Plan (runs on PRs) ---
+  terraform-plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.OCI_S3_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_S3_SECRET_KEY }}
+      TF_VAR_oci_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+      TF_VAR_oci_user_ocid: ${{ secrets.OCI_USER_OCID }}
+      TF_VAR_oci_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+      TF_VAR_oci_private_key: ${{ secrets.OCI_PRIVATE_KEY }}
+      TF_VAR_oci_region: ${{ secrets.OCI_REGION }}
+      TF_VAR_oci_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
+      TF_VAR_oci_availability_domain: ${{ secrets.OCI_AVAILABILITY_DOMAIN }}
+      TF_VAR_oci_instance_image_ocid: ${{ secrets.OCI_INSTANCE_IMAGE_OCID }}
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+      TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      TF_VAR_ssh_allowed_cidr: ${{ secrets.SSH_ALLOWED_CIDR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+
+      - name: Terraform Init
+        working-directory: terraform
+        env:
+          OCI_NAMESPACE: ${{ vars.OCI_NAMESPACE }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+        run: |
+          terraform init \
+            -backend-config="endpoints={s3=\"https://${OCI_NAMESPACE}.compat.objectstorage.${OCI_REGION}.oraclecloud.com\"}" \
+            -backend-config="access_key=${{ secrets.OCI_S3_ACCESS_KEY }}" \
+            -backend-config="secret_key=${{ secrets.OCI_S3_SECRET_KEY }}"
+
+      - name: Terraform Plan
+        working-directory: terraform
+        run: terraform plan -no-color -out=tfplan 2>&1 | tee plan_output.txt
+
+      - name: Post plan to PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('terraform/plan_output.txt', 'utf8');
+            const truncated = plan.length > 60000 ? plan.substring(0, 60000) + '\n... (truncated)' : plan;
+
+            // Delete previous bot comments
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            for (const comment of comments) {
+              if (comment.user.type === 'Bot' && comment.body.includes('Terraform Plan')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment.id,
+                });
+              }
+            }
+
+            const body = `#### Terraform Plan\n\`\`\`\n${truncated}\n\`\`\`\n*Triggered by @${{ github.actor }} on \`${{ github.event.pull_request.head.ref }}\`*`;
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body.substring(0, 65536)
+            });
+
+  # --- Terraform Apply (runs on push to main) ---
+  terraform-apply:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      tunnel_token: ${{ steps.tunnel.outputs.token }}
+      domain: ${{ steps.domain.outputs.domain }}
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.OCI_S3_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_S3_SECRET_KEY }}
+      TF_VAR_oci_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+      TF_VAR_oci_user_ocid: ${{ secrets.OCI_USER_OCID }}
+      TF_VAR_oci_fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+      TF_VAR_oci_private_key: ${{ secrets.OCI_PRIVATE_KEY }}
+      TF_VAR_oci_region: ${{ secrets.OCI_REGION }}
+      TF_VAR_oci_compartment_id: ${{ secrets.OCI_COMPARTMENT_ID }}
+      TF_VAR_oci_availability_domain: ${{ secrets.OCI_AVAILABILITY_DOMAIN }}
+      TF_VAR_oci_instance_image_ocid: ${{ secrets.OCI_INSTANCE_IMAGE_OCID }}
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+      TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      TF_VAR_ssh_allowed_cidr: ${{ secrets.SSH_ALLOWED_CIDR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        working-directory: terraform
+        env:
+          OCI_NAMESPACE: ${{ vars.OCI_NAMESPACE }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+        run: |
+          terraform init \
+            -backend-config="endpoints={s3=\"https://${OCI_NAMESPACE}.compat.objectstorage.${OCI_REGION}.oraclecloud.com\"}" \
+            -backend-config="access_key=${{ secrets.OCI_S3_ACCESS_KEY }}" \
+            -backend-config="secret_key=${{ secrets.OCI_S3_SECRET_KEY }}"
+
+      - name: Terraform Apply
+        working-directory: terraform
+        run: terraform apply -auto-approve
+
+      - name: Get tunnel token
+        id: tunnel
+        working-directory: terraform
+        run: |
+          TUNNEL_TOKEN=$(terraform output -raw cloudflare_tunnel_token)
+          echo "::add-mask::$TUNNEL_TOKEN"
+          echo "token=$TUNNEL_TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Get domain
+        id: domain
+        working-directory: terraform
+        run: |
+          DOMAIN=$(terraform output -raw domain)
+          echo "domain=$DOMAIN" >> "$GITHUB_OUTPUT"
+
+  # --- Ansible Provision (runs after terraform apply) ---
+  ansible-provision:
+    needs: [terraform-apply]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ansible
+        run: pip install ansible
+
+      - name: Install cloudflared
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+          chmod +x /usr/local/bin/cloudflared
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VM_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Run Ansible playbook
+        working-directory: ansible
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          ANSIBLE_PRIVATE_KEY_FILE: ~/.ssh/deploy_key
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+          CLOUDFLARE_TUNNEL_TOKEN: ${{ needs.terraform-apply.outputs.tunnel_token }}
+          ANSIBLE_SSH_ARGS: '-o ProxyCommand="cloudflared access ssh --hostname %h" -o StrictHostKeyChecking=no'
+        run: ansible-playbook playbook.yml --tags deploy
+
+      - name: Wait for stack to be healthy
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf --max-time 10 "https://dockguard.${{ needs.terraform-apply.outputs.domain }}/api/v1/health"; then
+              echo "✅ Health check passed"
+              exit 0
+            fi
+            echo "⏳ Waiting for health check... ($i/30)"
+            sleep 10
+          done
+          echo "❌ Health check failed after 5 minutes"
+          exit 1

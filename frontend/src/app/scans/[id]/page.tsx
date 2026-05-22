@@ -8,6 +8,7 @@ import { ScanInsightPanel } from "@/components/ScanInsightPanel";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SkeletonDetailPage } from "@/components/Skeleton";
 import { ScanWorkspace, WorkspaceTab } from "@/components/ScanWorkspace";
+import { MobileSeveritySummary } from "@/components/SeverityDonut";
 
 export default function ScanDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -82,6 +83,9 @@ export default function ScanDetailPage() {
         <div className="mt-4 flex flex-wrap items-center gap-2 sm:mt-5">
           <StatusBadge status={scan.scan_status} />
           {scan.build_status && <StatusBadge status={scan.build_status} />}
+        </div>
+        <div className="mt-4 sm:mt-5">
+          <MobileSeveritySummary summary={scan.summary ?? null} />
         </div>
 
         <div className="mt-5 grid gap-3 sm:mt-6 sm:gap-4 md:grid-cols-2 xl:grid-cols-4">

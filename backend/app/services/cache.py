@@ -50,6 +50,8 @@ async def get_cached_scan_id_for_digest(digest: str | None) -> int | None:
         val = await r.get(_digest_key(digest))
         return int(val) if val else None
     except Exception as e:
+        global _client
+        _client = None
         logger.warning("Redis GET error: %s", e)
         return None
 
@@ -64,4 +66,6 @@ async def cache_scan_result(digest: str | None, scan_id: int) -> None:
     try:
         await r.setex(_digest_key(digest), CACHE_TTL, str(scan_id))
     except Exception as e:
+        global _client
+        _client = None
         logger.warning("Redis SETEX error: %s", e)

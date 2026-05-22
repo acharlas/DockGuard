@@ -1,6 +1,48 @@
 import { ScanSummary } from "@/lib/api";
 import { getSeverityPresentation, SEVERITY_ORDER } from "@/lib/constants";
 
+const MOBILE_SEVERITIES = [
+  { key: "CRITICAL", label: "Critical", color: "#dc2626" },
+  { key: "HIGH", label: "High", color: "#ea580c" },
+  { key: "MEDIUM", label: "Med", color: "#ca8a04" },
+  { key: "LOW", label: "Low", color: "#2563eb" },
+] as const;
+
+export function MobileSeveritySummary({ summary }: { summary: ScanSummary | null }) {
+  if (!summary) return null;
+
+  const items = MOBILE_SEVERITIES.map((s) => ({
+    ...s,
+    count: summary[s.key.toLowerCase() as keyof ScanSummary] as number,
+  })).filter((s) => s.count > 0);
+
+  const total = items.reduce((acc, s) => acc + s.count, 0);
+
+  if (total === 0) {
+    return (
+      <div className="flex items-center gap-2 md:hidden">
+        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+        <span className="text-xs text-[color:var(--dockguard-muted)]">No vulnerabilities found</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2 md:hidden">
+      {items.map((item) => (
+        <span
+          key={item.key}
+          className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-3 py-1 text-xs"
+        >
+          <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: item.color }} />
+          <span className="font-semibold tabular-nums text-[color:var(--dockguard-ink)]">{item.count}</span>
+          <span className="text-[color:var(--dockguard-muted)]">{item.label}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 const RADIUS = 42;
 const STROKE_WIDTH = 12;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;

@@ -1,3 +1,6 @@
+import asyncio
+import logging
+import logging.config
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -10,14 +13,55 @@ from app.config import settings
 from app.db.session import engine
 from app.services.dive import log_build_runtime_status
 from app.services.scanner import reconcile_interrupted_scans
-from app.tasks import _background_tasks
+from app.tasks import _background_tasks, _shutdown_event
+
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "json": {
+            "format": '{"time":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}',
+            "datefmt": "%Y-%m-%dT%H:%M:%S",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json",
+            "stream": "ext://sys.stdout",
+        },
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": ["console"],
+    },
+    "loggers": {
+        "uvicorn": {
+            "level": "INFO",
+            "handlers": ["console"],
+            "propagate": False,
+        },
+        "uvicorn.access": {
+            "level": "INFO",
+            "handlers": ["console"],
+            "propagate": False,
+        },
+    },
+}
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logging.config.dictConfig(LOGGING_CONFIG)
     await reconcile_interrupted_scans()
     log_build_runtime_status()
     yield
+    _shutdown_event.set()
+    # Give active scans up to 10s to finish
+    for _ in range(20):
+        if not _background_tasks:
+            break
+        await asyncio.sleep(0.5)
     for task in _background_tasks:
         task.cancel()
     await engine.dispose()
@@ -29,8 +73,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 app.include_router(health.router, prefix="/api/v1", tags=["health"])

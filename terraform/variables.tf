@@ -1,54 +1,92 @@
-variable "aws_region" {
-  description = "AWS region to deploy into"
+# --- Oracle Cloud ---
+
+variable "oci_tenancy_ocid" {
+  description = "OCI tenancy OCID"
   type        = string
-  default     = "eu-west-3"
 }
 
-variable "project" {
-  description = "Project name, used as a prefix for all demo-stack resource names"
+variable "oci_user_ocid" {
+  description = "OCI user OCID"
   type        = string
-  default     = "dockguard"
 }
 
-variable "instance_type" {
-  description = "EC2 instance type for the application server"
-  type        = string
-  default     = "t3.small"
-}
-
-variable "db_instance_class" {
-  description = "RDS instance class"
-  type        = string
-  default     = "db.t3.micro"
-}
-
-variable "db_password" {
-  description = "Password for the RDS PostgreSQL master user"
+variable "oci_fingerprint" {
+  description = "OCI API key fingerprint"
   type        = string
   sensitive   = true
 }
 
+variable "oci_private_key" {
+  description = "OCI API private key content (PEM format)"
+  type        = string
+  sensitive   = true
+}
+
+variable "oci_region" {
+  description = "OCI region"
+  type        = string
+  default     = "eu-paris-1"
+}
+
+variable "oci_compartment_id" {
+  description = "OCI compartment OCID (use tenancy OCID for root compartment)"
+  type        = string
+}
+
+variable "oci_availability_domain" {
+  description = "Availability domain name (e.g. kIdk:EU-PARIS-1-AD-1). Find via: oci iam availability-domain list"
+  type        = string
+}
+
+variable "oci_instance_image_ocid" {
+  description = "OCI image OCID for Ubuntu Server 22.04/24.04 LTS (x86_64). Find at https://docs.oracle.com/iaas/images/"
+  type        = string
+}
+
+# --- Cloudflare ---
+
+variable "cloudflare_api_token" {
+  description = "Cloudflare API token with DNS and Tunnel permissions"
+  type        = string
+  sensitive   = true
+}
+
+variable "cloudflare_account_id" {
+  description = "Cloudflare account ID"
+  type        = string
+}
+
+variable "cloudflare_zone_id" {
+  description = "Cloudflare zone ID for acharlas.dev"
+  type        = string
+}
+
+variable "domain" {
+  description = "Base domain name"
+  type        = string
+  default     = "acharlas.dev"
+}
+
+# --- SSH ---
+
 variable "ssh_public_key" {
-  description = "SSH public key material for the EC2 key pair"
+  description = "SSH public key for VM access"
   type        = string
 }
 
 variable "ssh_allowed_cidr" {
-  description = "CIDR block allowed to SSH into the EC2 instance and demo dashboard"
+  description = "CIDR block allowed to SSH into the VM"
   type        = string
 }
 
-variable "ghcr_image_backend" {
-  description = "Full GHCR image reference for the backend (e.g. ghcr.io/user/dockguard-backend:latest)"
-  type        = string
-}
+# --- Tags ---
 
-variable "ghcr_image_frontend" {
-  description = "Full GHCR image reference for the frontend (e.g. ghcr.io/user/dockguard-frontend:latest)"
-  type        = string
-}
-
-variable "cors_origins" {
-  description = "Allowed CORS origins for the backend API (JSON array string)"
-  type        = string
+variable "project_tags" {
+  description = "Freeform tags applied to all resources"
+  type        = map(string)
+  default = {
+    project     = "dockguard"
+    environment = "production"
+    managed_by  = "terraform"
+  }
 }

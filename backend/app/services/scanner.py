@@ -158,6 +158,7 @@ async def _finalize_success_if_running(
         )
         if (success_result.rowcount or 0) == 1:
             await db.commit()
+            # Fall through — cache write and metrics happen after this block exits.
         else:
             if await _cancel_active_if_requested(db, scan_id, now):
                 await db.commit()

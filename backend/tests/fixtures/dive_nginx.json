@@ -1,43 +1,54 @@
 {
   "image": {
     "sizeBytes": 205000000,
+    "inefficientBytes": 18450000,
     "efficiencyScore": 0.87,
-    "wastedBytes": 18450000,
-    "wastedPercent": 9.0
+    "fileReference": [
+      { "count": 3, "sizeBytes": 8200000, "file": "/usr/share/nginx/modules" },
+      { "count": 2, "sizeBytes": 10250000, "file": "/app/node_modules" }
+    ]
   },
-  "layerCount": 4,
-  "layers": [
+  "layer": [
     {
-      "id": "sha256:layer-1",
-      "createdBy": "FROM nginx:stable-alpine",
+      "index": 0,
+      "id": "layer-1",
+      "digestId": "sha256:layer-1",
       "sizeBytes": 80300000,
-      "wastedBytes": 0,
-      "wastedPercent": 0,
-      "efficiencyScore": 1.0
+      "command": "FROM nginx:stable-alpine",
+      "fileList": [
+        { "path": "/usr/share/nginx/modules" }
+      ]
     },
     {
-      "id": "sha256:layer-2",
-      "createdBy": "RUN apk add curl bash",
+      "index": 1,
+      "id": "layer-2",
+      "digestId": "sha256:layer-2",
       "sizeBytes": 40200000,
-      "wastedBytes": 8200000,
-      "wastedPercent": 20.4,
-      "efficiencyScore": 0.8
+      "command": "RUN apk add curl bash",
+      "fileList": [
+        { "path": "/usr/share/nginx/modules" }
+      ]
     },
     {
-      "id": "sha256:layer-3",
-      "createdBy": "COPY . /app",
+      "index": 2,
+      "id": "layer-3",
+      "digestId": "sha256:layer-3",
       "sizeBytes": 52300000,
-      "wastedBytes": 10250000,
-      "wastedPercent": 19.6,
-      "efficiencyScore": 0.8
+      "command": "COPY . /app",
+      "fileList": [
+        { "path": "/usr/share/nginx/modules" },
+        { "path": "/app/node_modules" }
+      ]
     },
     {
-      "id": "sha256:layer-4",
-      "createdBy": "RUN rm -rf /var/cache/apk/*",
+      "index": 3,
+      "id": "layer-4",
+      "digestId": "sha256:layer-4",
       "sizeBytes": 32200000,
-      "wastedBytes": 0,
-      "wastedPercent": 0,
-      "efficiencyScore": 1.0
+      "command": "RUN rm -rf /var/cache/apk/*",
+      "fileList": [
+        { "path": "/app/node_modules" }
+      ]
     }
   ]
 }

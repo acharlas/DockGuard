@@ -1,8 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, cancelScan, createScan, getScan, ScanDetail } from "@/lib/api";
 import { SCAN_STATUS } from "@/lib/constants";
+
+const MAX_POLL_RETRIES = 3;
+const POLL_INTERVAL_MS = 2000;
+const BACKOFF_INTERVAL_MS = 3000;
 
 export function isActiveScanStatus(status: string) {
   return status === SCAN_STATUS.PENDING || status === SCAN_STATUS.RUNNING;
@@ -15,13 +19,16 @@ export function useActiveScan() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Track consecutive poll failures without triggering re-renders.
+  const failureCountRef = useRef(0);
+
   useEffect(() => {
     if (activeScanId === null) {
       return;
     }
 
     let cancelled = false;
-    let timeoutId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const controller = new AbortController();
 
     const poll = async () => {
@@ -30,9 +37,11 @@ export function useActiveScan() {
         if (cancelled || data.id !== activeScanId) {
           return;
         }
+        // Reset failure count on successful poll.
+        failureCountRef.current = 0;
         setScan(data);
         if (isActiveScanStatus(data.scan_status)) {
-          timeoutId = window.setTimeout(poll, 2000);
+          timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
           return;
         }
         setActiveScanId(null);
@@ -44,6 +53,16 @@ export function useActiveScan() {
         if (err instanceof DOMException && err.name === "AbortError") {
           return;
         }
+
+        failureCountRef.current += 1;
+
+        if (failureCountRef.current < MAX_POLL_RETRIES) {
+          // Transient failure — keep polling with a short backoff.
+          timeoutId = setTimeout(poll, BACKOFF_INTERVAL_MS);
+          return;
+        }
+
+        // Max retries exceeded — surface the error and stop polling.
         setError(
           getApiErrorMessage(
             err,
@@ -65,7 +84,7 @@ export function useActiveScan() {
       cancelled = true;
       controller.abort();
       if (timeoutId !== undefined) {
-        window.clearTimeout(timeoutId);
+        clearTimeout(timeoutId);
       }
     };
   }, [activeScanId]);
@@ -77,6 +96,7 @@ export function useActiveScan() {
 
     setError(null);
     setLoading(true);
+    failureCountRef.current = 0;
 
     try {
       const created = await createScan(image.trim());
