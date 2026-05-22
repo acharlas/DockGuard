@@ -3,18 +3,50 @@ set -e
 
 cd "$(dirname "$0")/../terraform"
 
-# Temporarily disable S3 backend for local-only bootstrap
-cp provider.tf provider.tf.bak
-sed -i '/backend "s3" {/,/}/c\  # backend disabled for bootstrap' provider.tf
+# Create minimal bootstrap config that only creates the bucket
+cat > bootstrap.tf <<'EOF'
+terraform {
+  required_providers {
+    oci = {
+      source  = "oracle/oci"
+      version = "~> 6.0"
+    }
+  }
+}
+
+provider "oci" {
+  tenancy_ocid = var.oci_tenancy_ocid
+  user_ocid    = var.oci_user_ocid
+  fingerprint  = var.oci_fingerprint
+  private_key  = var.oci_private_key
+  region       = var.oci_region
+}
+
+data "oci_objectstorage_namespace" "ns" {
+  compartment_id = var.oci_compartment_id
+}
+
+resource "oci_objectstorage_bucket" "tf_state" {
+  compartment_id = var.oci_compartment_id
+  namespace      = data.oci_objectstorage_namespace.ns.namespace
+  name           = "dockguard-tfstate"
+  storage_tier   = "Standard"
+  access_type    = "NoPublicAccess"
+}
+
+variable "oci_tenancy_ocid" { type = string }
+variable "oci_user_ocid" { type = string }
+variable "oci_fingerprint" { type = string sensitive = true }
+variable "oci_private_key" { type = string sensitive = true }
+variable "oci_region" { type = string }
+variable "oci_compartment_id" { type = string }
+EOF
 
 echo "Bootstrapping Terraform state bucket (one-time)..."
 terraform init -backend=false
-terraform plan -target=oci_objectstorage_bucket.tf_state -out=bootstrap.plan
+terraform plan -out=bootstrap.plan
 terraform apply bootstrap.plan
-rm -f bootstrap.plan
-
-# Restore original provider.tf with S3 backend
-mv provider.tf.bak provider.tf
+rm -f bootstrap.plan bootstrap.tf
 
 echo "Bucket created. Now run:"
 echo "  ./scripts/tf-init.sh"
