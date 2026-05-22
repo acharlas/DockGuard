@@ -42,10 +42,10 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
 # --- Access Application for SSH (Zero Trust) ---
 
 resource "cloudflare_zero_trust_access_application" "ssh" {
-  account_id = var.cloudflare_account_id
-  name       = "DockGuard SSH"
-  type       = "self_hosted"
-  domain     = "ssh.dockguard.${var.domain}"
+  account_id       = var.cloudflare_account_id
+  name             = "DockGuard SSH"
+  type             = "self_hosted"
+  domain           = "ssh.dockguard.${var.domain}"
   session_duration = "24h"
 }
 
