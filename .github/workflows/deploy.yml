@@ -154,6 +154,7 @@ jobs:
       TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
       TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
       TF_VAR_ssh_allowed_cidr: ${{ secrets.SSH_ALLOWED_CIDR }}
+      TF_VAR_cloudflare_ssh_service_token_id: ${{ secrets.CLOUDFLARE_SSH_SERVICE_TOKEN_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -255,23 +256,33 @@ jobs:
       - name: Install Ansible
         run: pip install ansible
 
+      - name: Install cloudflared
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+          chmod +x /usr/local/bin/cloudflared
+
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.VM_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-      - name: Run Ansible playbook
+      - name: Run Ansible playbook via Cloudflare Tunnel
         working-directory: ansible
         env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           ANSIBLE_PRIVATE_KEY_FILE: ~/.ssh/deploy_key
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
           CLOUDFLARE_TUNNEL_TOKEN: ${{ needs.terraform-apply.outputs.tunnel_token }}
+          ANSIBLE_HOST_KEY_CHECKING: "False"
         run: |
+          export SSH_PROXY="/usr/local/bin/cloudflared access ssh --hostname %h --id \"$CF_ACCESS_CLIENT_ID\" --secret \"$CF_ACCESS_CLIENT_SECRET\""
           echo "[production]" > /tmp/ci_inventory.ini
-          echo "${{ needs.terraform-apply.outputs.vm_public_ip }} ansible_user=ubuntu" >> /tmp/ci_inventory.ini
-          ansible-playbook playbook.yml --tags deploy -i /tmp/ci_inventory.ini
+          echo "ssh.dockguard.${{ needs.terraform-apply.outputs.domain }} ansible_user=ubuntu" >> /tmp/ci_inventory.ini
+          ansible-playbook playbook.yml --tags deploy -i /tmp/ci_inventory.ini \
+            --ssh-common-args="-o ProxyCommand='$SSH_PROXY' -o StrictHostKeyChecking=no"
 
       - name: Wait for stack to be healthy
         run: |

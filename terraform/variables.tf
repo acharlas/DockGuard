@@ -80,6 +80,11 @@ variable "ssh_allowed_cidr" {
   default     = "0.0.0.0/0"
 }
 
+variable "cloudflare_ssh_service_token_id" {
+  description = "Cloudflare Access Service Token ID for CI SSH (create manually in dashboard)"
+  type        = string
+}
+
 # --- Tags ---
 
 variable "project_tags" {

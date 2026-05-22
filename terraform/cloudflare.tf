@@ -39,6 +39,28 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
   }
 }
 
+# --- Access Application for SSH (Zero Trust) ---
+
+resource "cloudflare_zero_trust_access_application" "ssh" {
+  account_id = var.cloudflare_account_id
+  name       = "DockGuard SSH"
+  type       = "self_hosted"
+  domain     = "ssh.dockguard.${var.domain}"
+  session_duration = "24h"
+}
+
+resource "cloudflare_zero_trust_access_policy" "ssh_ci" {
+  application_id = cloudflare_zero_trust_access_application.ssh.id
+  account_id     = var.cloudflare_account_id
+  name           = "Allow CI Service Token"
+  decision       = "allow"
+  precedence     = 1
+
+  include {
+    service_token = [var.cloudflare_ssh_service_token_id]
+  }
+}
+
 # --- DNS Records (Free) ---
 
 resource "cloudflare_record" "app" {
