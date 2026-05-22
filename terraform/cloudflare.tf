@@ -43,7 +43,9 @@ resource "cloudflare_zero_trust_access_policy" "ssh_ci" {
   precedence     = 1
   decision       = "allow"
   include {
-    service_token = [var.cloudflare_ssh_service_token_id]
+    service_token {
+      token_id = var.cloudflare_ssh_service_token_id
+    }
   }
 }
 
