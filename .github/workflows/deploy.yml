@@ -1,5 +1,14 @@
 name: DockGuard Deploy
 
+# IMPORTANT: This workflow requires a GitHub Environment named 'production'.
+# Configure it at: Settings > Environments > production
+# Recommended for an MVP auto-deploy pipeline:
+#   - Deployment branches: restrict to 'main'
+#   - Optional: add a wait timer (e.g. 1 min) for safety, but do NOT require
+#     manual reviewers if you want fully automated merge-to-deploy.
+# If jobs appear "stuck" or "never trigger", check the Actions tab for
+# "Waiting for production environment approval".
+
 on:
   pull_request:
     branches: [main]
@@ -17,6 +26,10 @@ on:
 concurrency:
   group: deploy-infra
   cancel-in-progress: false
+
+env:
+  TF_VERSION: "1.7.5"
+  TF_IN_AUTOMATION: "true"
 
 jobs:
   # --- Terraform Plan (runs on PRs) ---
@@ -47,22 +60,38 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.7.5"
+          terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Init
+      - name: Generate S3 backend config
         working-directory: terraform
         env:
           OCI_NAMESPACE: ${{ vars.OCI_NAMESPACE }}
           OCI_REGION: ${{ secrets.OCI_REGION }}
+          ACCESS_KEY: ${{ secrets.OCI_S3_ACCESS_KEY }}
+          SECRET_KEY: ${{ secrets.OCI_S3_SECRET_KEY }}
         run: |
-          terraform init \
-            -backend-config="endpoints={s3=\"https://${OCI_NAMESPACE}.compat.objectstorage.${OCI_REGION}.oraclecloud.com\"}" \
-            -backend-config="access_key=${{ secrets.OCI_S3_ACCESS_KEY }}" \
-            -backend-config="secret_key=${{ secrets.OCI_S3_SECRET_KEY }}"
+          cat > backend.hcl <<EOF
+          endpoints = {
+            s3 = "https://${OCI_NAMESPACE}.compat.objectstorage.${OCI_REGION}.oraclecloud.com"
+          }
+          access_key = "${ACCESS_KEY}"
+          secret_key = "${SECRET_KEY}"
+          EOF
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init -backend-config=backend.hcl
 
       - name: Terraform Plan
         working-directory: terraform
         run: terraform plan -no-color -out=tfplan 2>&1 | tee plan_output.txt
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: terraform/tfplan
+          retention-days: 1
 
       - name: Post plan to PR
         if: always()
@@ -100,7 +129,7 @@ jobs:
 
   # --- Terraform Apply (runs on push to main) ---
   terraform-apply:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
     outputs:
@@ -128,23 +157,36 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.7.5"
+          terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
 
-      - name: Terraform Init
+      - name: Generate S3 backend config
         working-directory: terraform
         env:
           OCI_NAMESPACE: ${{ vars.OCI_NAMESPACE }}
           OCI_REGION: ${{ secrets.OCI_REGION }}
+          ACCESS_KEY: ${{ secrets.OCI_S3_ACCESS_KEY }}
+          SECRET_KEY: ${{ secrets.OCI_S3_SECRET_KEY }}
         run: |
-          terraform init \
-            -backend-config="endpoints={s3=\"https://${OCI_NAMESPACE}.compat.objectstorage.${OCI_REGION}.oraclecloud.com\"}" \
-            -backend-config="access_key=${{ secrets.OCI_S3_ACCESS_KEY }}" \
-            -backend-config="secret_key=${{ secrets.OCI_S3_SECRET_KEY }}"
+          cat > backend.hcl <<EOF
+          endpoints = {
+            s3 = "https://${OCI_NAMESPACE}.compat.objectstorage.${OCI_REGION}.oraclecloud.com"
+          }
+          access_key = "${ACCESS_KEY}"
+          secret_key = "${SECRET_KEY}"
+          EOF
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init -backend-config=backend.hcl
+
+      - name: Terraform Plan
+        working-directory: terraform
+        run: terraform plan -out=tfplan
 
       - name: Terraform Apply
         working-directory: terraform
-        run: terraform apply -auto-approve
+        run: terraform apply -auto-approve tfplan
 
       - name: Get tunnel token
         id: tunnel
@@ -171,7 +213,7 @@ jobs:
   # --- Ansible Provision (runs after terraform apply) ---
   ansible-provision:
     needs: [terraform-apply]
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 10
