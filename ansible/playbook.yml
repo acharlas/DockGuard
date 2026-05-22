@@ -1,6 +1,5 @@
----
-- name: Configure DockGuard application server
-  hosts: production
+- name: Deploy DockGuard
+  hosts: all
   become: true
   roles:
     - dockguard
