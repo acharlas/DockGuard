@@ -7,9 +7,6 @@ resource "oci_core_vcn" "main" {
   dns_label      = "dockguard"
   freeform_tags  = var.project_tags
 
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 # --- Lock down default VCN resources (OCI best practice) ---

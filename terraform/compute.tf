@@ -10,9 +10,6 @@ resource "oci_core_instance" "app" {
   shape               = "VM.Standard.E2.1.Micro"
   freeform_tags       = var.project_tags
 
-  lifecycle {
-    prevent_destroy = true
-  }
 
   source_details {
     source_type             = "image"

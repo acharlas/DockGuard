@@ -137,7 +137,7 @@ jobs:
           context: ./backend
           target: dev
           push: false
-          platforms: linux/arm64
+          platforms: linux/amd64
           tags: dockguard-backend-dev:${{ github.sha }}
 
       - name: Build backend image
@@ -145,7 +145,7 @@ jobs:
         with:
           context: ./backend
           push: false
-          platforms: linux/arm64
+          platforms: linux/amd64
           tags: dockguard-backend:${{ github.sha }}
           outputs: type=docker,dest=/tmp/backend.tar
 
@@ -155,7 +155,7 @@ jobs:
           context: ./frontend
           target: dev
           push: false
-          platforms: linux/arm64
+          platforms: linux/amd64
           tags: dockguard-frontend-dev:${{ github.sha }}
 
       - name: Build frontend image
@@ -163,7 +163,7 @@ jobs:
         with:
           context: ./frontend
           push: false
-          platforms: linux/arm64
+          platforms: linux/amd64
           tags: dockguard-frontend:${{ github.sha }}
           outputs: type=docker,dest=/tmp/frontend.tar
 
