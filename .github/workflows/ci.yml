@@ -301,6 +301,17 @@ jobs:
           echo "${{ secrets.VM_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
+      - name: Setup cloudflared SSH proxy
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          cat > /tmp/cloudflared-ssh-proxy <<'EOF'
+          #!/bin/bash
+          exec /usr/local/bin/cloudflared access ssh --hostname "$1" --id "$CF_ACCESS_CLIENT_ID" --secret "$CF_ACCESS_CLIENT_SECRET"
+          EOF
+          chmod +x /tmp/cloudflared-ssh-proxy
+
       - name: Deploy via Ansible
         working-directory: ansible
         env:
@@ -309,4 +320,5 @@ jobs:
           ANSIBLE_PRIVATE_KEY_FILE: ~/.ssh/deploy_key
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+          ANSIBLE_SSH_ARGS: '-o ProxyCommand="/tmp/cloudflared-ssh-proxy %h" -o StrictHostKeyChecking=no'
         run: ansible-playbook playbook.yml --tags deploy
