@@ -1,10 +1,12 @@
 #!/bin/bash
 set -e
 
-cd "$(dirname "$0")/../terraform"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+TMP_DIR=$(mktemp -d)
 
-# Create minimal bootstrap config that only creates the bucket
-cat > bootstrap.tf <<'EOF'
+cd "$TMP_DIR"
+
+cat > main.tf <<'EOF'
 terraform {
   required_providers {
     oci = {
@@ -34,19 +36,42 @@ resource "oci_objectstorage_bucket" "tf_state" {
   access_type    = "NoPublicAccess"
 }
 
-variable "oci_tenancy_ocid" { type = string }
-variable "oci_user_ocid" { type = string }
-variable "oci_fingerprint" { type = string sensitive = true }
-variable "oci_private_key" { type = string sensitive = true }
-variable "oci_region" { type = string }
-variable "oci_compartment_id" { type = string }
+variable "oci_tenancy_ocid" {
+  type = string
+}
+
+variable "oci_user_ocid" {
+  type = string
+}
+
+variable "oci_fingerprint" {
+  type      = string
+  sensitive = true
+}
+
+variable "oci_private_key" {
+  type      = string
+  sensitive = true
+}
+
+variable "oci_region" {
+  type    = string
+  default = "eu-paris-1"
+}
+
+variable "oci_compartment_id" {
+  type = string
+}
 EOF
 
 echo "Bootstrapping Terraform state bucket (one-time)..."
-terraform init -backend=false
+terraform init
 terraform plan -out=bootstrap.plan
 terraform apply bootstrap.plan
-rm -f bootstrap.plan bootstrap.tf
+rm -f bootstrap.plan
+
+cd "$SCRIPT_DIR"
+rm -rf "$TMP_DIR"
 
 echo "Bucket created. Now run:"
 echo "  ./scripts/tf-init.sh"
