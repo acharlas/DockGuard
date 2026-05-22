@@ -1,13 +1,6 @@
 terraform {
   required_version = ">= 1.7"
 
-  # Local state is used for manual execution.
-  # To switch to OCI S3 backend for CI/CD, uncomment the backend block below
-  # and run: terraform init -reconfigure -backend-config="..."
-  #
-  # For local manual execution without S3 credentials, run:
-  #   terraform init -backend=false
-  # CI/CD initializes with -backend-config flags.
   backend "s3" {
     bucket                      = "dockguard-tfstate"
     key                         = "prod/terraform.tfstate"
@@ -16,6 +9,7 @@ terraform {
     skip_credentials_validation = true
     skip_metadata_api_check     = true
     skip_requesting_account_id  = true
+    skip_s3_checksum            = true
     use_path_style              = true
   }
 
