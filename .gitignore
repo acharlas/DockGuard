@@ -65,6 +65,9 @@ CLAUDE.md
 .agents/
 skills-lock.json
 
+# OpenCode plans
+.opencode/
+
 # Next.js / frontend tooling
 .swc/
 docs/superpowers/
