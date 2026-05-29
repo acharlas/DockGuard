@@ -47,8 +47,13 @@ async def get_cached_scan_id_for_digest(digest: str | None) -> int | None:
     if r is None:
         return None
     try:
-        val = await r.get(_digest_key(digest))
-        return int(val) if val else None
+        raw = await r.get(_digest_key(digest))
+        if not raw:
+            return None
+        return int(raw)
+    except ValueError:
+        logger.warning("Redis cached value for digest %s is not an integer", digest)
+        return None
     except Exception as e:
         global _client
         _client = None

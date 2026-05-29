@@ -5,8 +5,10 @@ import { ApiError, cancelScan, createScan, getScan, ScanDetail } from "@/lib/api
 import { SCAN_STATUS } from "@/lib/constants";
 
 const MAX_POLL_RETRIES = 3;
-const POLL_INTERVAL_MS = 2000;
-const BACKOFF_INTERVAL_MS = 3000;
+const POLL_INITIAL_MS = 2000;
+const POLL_BACKOFF_MS = 3000;
+const POLL_BACKOFF_LONG_MS = 5000;
+const POLL_BACKOFF_MAX_MS = 10000;
 
 export function isActiveScanStatus(status: string) {
   return status === SCAN_STATUS.PENDING || status === SCAN_STATUS.RUNNING;
@@ -21,12 +23,14 @@ export function useActiveScan() {
 
   // Track consecutive poll failures without triggering re-renders.
   const failureCountRef = useRef(0);
+  const pollStartRef = useRef(0);
 
   useEffect(() => {
     if (activeScanId === null) {
       return;
     }
 
+    pollStartRef.current = Date.now();
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const controller = new AbortController();
@@ -41,7 +45,12 @@ export function useActiveScan() {
         failureCountRef.current = 0;
         setScan(data);
         if (isActiveScanStatus(data.scan_status)) {
-          timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
+          const elapsed = Date.now() - pollStartRef.current;
+          const delay =
+            elapsed < 30_000 ? POLL_INITIAL_MS
+            : elapsed < 120_000 ? POLL_BACKOFF_LONG_MS
+            : POLL_BACKOFF_MAX_MS;
+          timeoutId = setTimeout(poll, delay);
           return;
         }
         setActiveScanId(null);
@@ -58,7 +67,7 @@ export function useActiveScan() {
 
         if (failureCountRef.current < MAX_POLL_RETRIES) {
           // Transient failure — keep polling with a short backoff.
-          timeoutId = setTimeout(poll, BACKOFF_INTERVAL_MS);
+          timeoutId = setTimeout(poll, POLL_BACKOFF_MS);
           return;
         }
 
