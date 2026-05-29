@@ -1,6 +1,0 @@
-ghcr_image_backend: "ghcr.io/acharlas/dockguard-backend:latest"
-ghcr_image_frontend: "ghcr.io/acharlas/dockguard-frontend:latest"
-app_dir: /opt/dockguard
-
-db_password: "{{ lookup('env', 'DB_PASSWORD') | mandatory }}"
-grafana_admin_password: "{{ lookup('env', 'GRAFANA_ADMIN_PASSWORD') | mandatory }}"

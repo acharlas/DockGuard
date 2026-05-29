@@ -1,5 +1,5 @@
-- name: Deploy DockGuard
+---
+- name: Barebone playbook — restart fresh
   hosts: all
   become: true
-  roles:
-    - dockguard
+  tasks: []
