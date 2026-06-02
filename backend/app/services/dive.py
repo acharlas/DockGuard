@@ -171,9 +171,7 @@ async def _run_dive_json_file(scan_id: int, image_name: str, output_path: str) -
 
 def _should_retry_after_pull(exc: RuntimeError) -> bool:
     message = str(exc).lower()
-    return "dive exited with code" in message and any(
-        token in message for token in _MISSING_LOCAL_IMAGE_TOKENS
-    )
+    return any(token in message for token in _MISSING_LOCAL_IMAGE_TOKENS)
 
 
 async def run_dive(scan_id: int, image_name: str) -> dict:

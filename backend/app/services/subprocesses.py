@@ -91,7 +91,15 @@ async def run_logged_command(
                 await asyncio.wait_for(process.wait(), timeout=1)
             except TimeoutError:
                 process.kill()
-                await process.wait()
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=5)
+                except TimeoutError:
+                    logger.error(
+                        "Scan %d [%s] process %d did not terminate after kill",
+                        scan_id,
+                        label,
+                        process.pid,
+                    )
         else:
             await process.wait()
 

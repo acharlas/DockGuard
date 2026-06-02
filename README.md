@@ -55,11 +55,11 @@ docker compose up --build
 
 > **Cache permissions:** The Compose stack now runs a one-shot `trivy-cache-init` service that fixes ownership on the named Trivy cache volume before the backend starts. Rebuild the backend image after pulling these changes.
 >
-> **API access:** The default stack exposes only the frontend. Browser API calls go through the Next.js route-handler proxy. Use `docker compose -f docker-compose.dev.yml up` if you want direct access to Swagger at `http://localhost:8000/docs`.
+> **API access:** The backend is exposed at `http://localhost:8000` with Swagger at `http://localhost:8000/docs`. Browser API calls go through the Next.js route-handler proxy at `/api/v1/*`.
 >
-> **Build analysis:** The local Docker Compose stacks set `ENABLE_BUILD_ANALYSIS=true` and mount `/var/run/docker.sock` so Dive can inspect real images. Set `DOCKER_GID` to the socket group on your host before starting the stack.
+> **Build analysis:** The Docker Compose stack sets `ENABLE_BUILD_ANALYSIS=true` and mounts `/var/run/docker.sock` so Dive can inspect real images. Set `DOCKER_GID` to the socket group on your host before starting the stack.
 >
-> **Grafana sidebar link:** The local Docker Compose stacks bake `http://localhost:3001` into the frontend build. For any other environment, set `NEXT_PUBLIC_GRAFANA_URL` explicitly before building the frontend image. If it is unset, the Grafana button is hidden.
+> **Grafana sidebar link:** The Docker Compose stack bakes `http://localhost:3001` into the frontend build. For any other environment, set `NEXT_PUBLIC_GRAFANA_URL` explicitly before building the frontend image. If it is unset, the Grafana button is hidden.
 
 ### Populate demo data
 
@@ -174,17 +174,17 @@ POST /scans → existing pending/running scan returned when duplicate work is al
 
 ```bash
 # Dev stack with hot reload
-docker compose -f docker-compose.dev.yml up
+docker compose up
 
 # Backend tests + coverage
-docker compose -f docker-compose.dev.yml exec backend pytest --cov --cov-report=term
+docker compose exec backend pytest --cov --cov-report=term
 
 # Frontend tests
-docker compose -f docker-compose.dev.yml exec frontend npm test
+docker compose exec frontend npm test
 
 # Lint
-docker compose -f docker-compose.dev.yml exec backend ruff check app/ tests/
-docker compose -f docker-compose.dev.yml exec frontend npm run lint
+docker compose exec backend ruff check app/ tests/
+docker compose exec frontend npm run lint
 
 # Terraform validate
 cd terraform && terraform init -backend=false && terraform fmt -check && terraform validate

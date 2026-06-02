@@ -1,0 +1,95 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dockguard
+      POSTGRES_PASSWORD: "{{ db_password }}"
+      POSTGRES_DB: dockguard
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dockguard"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  trivy-cache-init:
+    image: busybox:1.37.0
+    restart: "no"
+    user: "0:0"
+    command: >
+      sh -c "mkdir -p /cache/db /cache/fanal &&
+             chown -R 10001:10001 /cache"
+    volumes:
+      - trivycache:/cache
+
+  backend:
+    image: ghcr.io/acharlas/dockguard-backend:latest
+    restart: unless-stopped
+    volumes:
+      - trivycache:/home/dockguard/.cache/trivy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://dockguard:{{ db_password }}@postgres:5432/dockguard
+      CORS_ORIGINS: '["https://dockguard.{{ domain }}"]'
+      REDIS_URL: redis://redis:6379/0
+      ENABLE_BUILD_ANALYSIS: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      trivy-cache-init:
+        condition: service_completed_successfully
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"
+
+  frontend:
+    image: ghcr.io/acharlas/dockguard-frontend:latest
+    restart: unless-stopped
+    environment:
+      API_URL: http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    restart: unless-stopped
+    volumes:
+      - "{{ app_dir }}/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    depends_on:
+      - backend
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    restart: unless-stopped
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: "{{ grafana_admin_password }}"
+    volumes:
+      - "{{ app_dir }}/grafana/provisioning:/etc/grafana/provisioning:ro"
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+volumes:
+  pgdata:
+  redisdata:
+  trivycache:
+  grafana_data:
