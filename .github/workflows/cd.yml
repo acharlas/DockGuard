@@ -53,6 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
+      DOMAIN: ${{ needs.terraform.outputs.domain }}
       CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
       CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
       ANSIBLE_PRIVATE_KEY_FILE: ~/.ssh/deploy_key
