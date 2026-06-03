@@ -80,12 +80,68 @@ jobs:
       - run: npm test
         working-directory: frontend
 
-  build-push:
-    if: github.ref == 'refs/heads/main'
+  build:
+    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
     needs: [backend-test, frontend-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image (load into Docker daemon)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          load: true
+          platforms: linux/amd64
+          tags: ghcr.io/${{ github.repository_owner }}/dockguard-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build frontend image (load into Docker daemon)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          load: true
+          platforms: linux/amd64
+          tags: ghcr.io/${{ github.repository_owner }}/dockguard-frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  trivy-scan:
+    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      matrix:
+        image:
+          - ghcr.io/${{ github.repository_owner }}/dockguard-backend:${{ github.sha }}
+          - ghcr.io/${{ github.repository_owner }}/dockguard-frontend:${{ github.sha }}
+    steps:
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ matrix.image }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: 1
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+  push:
+    if: github.ref == 'refs/heads/main'
+    needs: [build, trivy-scan]
     runs-on: ubuntu-latest
     permissions:
       packages: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -95,7 +151,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6
+      - name: Push backend image
+        uses: docker/build-push-action@v6
         with:
           context: ./backend
           push: true
@@ -103,8 +160,11 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/dockguard-backend:${{ github.sha }}
             ghcr.io/${{ github.repository_owner }}/dockguard-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - uses: docker/build-push-action@v6
+      - name: Push frontend image
+        uses: docker/build-push-action@v6
         with:
           context: ./frontend
           push: true
@@ -112,3 +172,5 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/dockguard-frontend:${{ github.sha }}
             ghcr.io/${{ github.repository_owner }}/dockguard-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
