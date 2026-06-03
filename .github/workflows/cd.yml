@@ -12,6 +12,7 @@ jobs:
         working-directory: terraform
     outputs:
       domain: ${{ steps.out.outputs.domain }}
+      vm_public_ip: ${{ steps.out.outputs.vm_public_ip }}
     env:
       TF_VAR_oci_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
       TF_VAR_oci_user_ocid: ${{ secrets.OCI_USER_OCID }}
@@ -45,9 +46,11 @@ jobs:
       - name: Apply
         run: terraform apply -auto-approve
 
-      - name: Output domain
+      - name: Outputs
         id: out
-        run: echo "domain=$(terraform output -raw domain)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "domain=$(terraform output -raw domain)" >> "$GITHUB_OUTPUT"
+          echo "vm_public_ip=$(terraform output -raw vm_public_ip)" >> "$GITHUB_OUTPUT"
 
   ansible:
     needs: terraform
@@ -55,8 +58,7 @@ jobs:
     environment: production
     env:
       DOMAIN: ${{ needs.terraform.outputs.domain }}
-      CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-      CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+      VM_IP: ${{ needs.terraform.outputs.vm_public_ip }}
       ANSIBLE_PRIVATE_KEY_FILE: ~/.ssh/deploy_key
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
       GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
@@ -70,19 +72,13 @@ jobs:
           echo "${{ secrets.VM_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-      - name: Install cloudflared
-        run: |
-          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
-          chmod +x /usr/local/bin/cloudflared
-
       - name: Deploy
         working-directory: ansible
         run: |
-          HOST="ssh.dockguard.${{ needs.terraform.outputs.domain }}"
           echo "[all]" > /tmp/inventory
-          echo "$HOST" >> /tmp/inventory
+          echo "$VM_IP" >> /tmp/inventory
           ansible-playbook playbook.yml -i /tmp/inventory \
-            --ssh-common-args="-o ProxyCommand='cloudflared access ssh --hostname %h --id $CF_ACCESS_CLIENT_ID --secret $CF_ACCESS_CLIENT_SECRET' -o StrictHostKeyChecking=accept-new"
+            --ssh-common-args="-o StrictHostKeyChecking=accept-new"
 
       - name: Health check
         run: |
