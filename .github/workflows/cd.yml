@@ -82,7 +82,7 @@ jobs:
           echo "[all]" > /tmp/inventory
           echo "$HOST" >> /tmp/inventory
           ansible-playbook playbook.yml -i /tmp/inventory \
-            --ssh-common-args="-o ProxyCommand='cloudflared access ssh --hostname %h' -o StrictHostKeyChecking=accept-new"
+            --ssh-common-args="-o ProxyCommand='cloudflared access ssh --hostname %h --id $CF_ACCESS_CLIENT_ID --secret $CF_ACCESS_CLIENT_SECRET' -o StrictHostKeyChecking=accept-new"
 
       - name: Health check
         run: |
