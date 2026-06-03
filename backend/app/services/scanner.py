@@ -34,8 +34,18 @@ async def cancel_scan(scan_id: int) -> None:
 
 
 async def run_scan(scan_id: int) -> None:
-    async with _scan_semaphore:
+    try:
+        await asyncio.wait_for(
+            _scan_semaphore.acquire(),
+            timeout=settings.semaphore_acquire_timeout,
+        )
+    except TimeoutError:
+        await _finalize_failure_if_active(scan_id, "semaphore_timeout")
+        return
+    try:
         await _execute_scan(scan_id)
+    finally:
+        _scan_semaphore.release()
 
 
 async def reconcile_interrupted_scans() -> int:
@@ -251,7 +261,6 @@ async def _run_trivy(scan_id: int, image_name: str) -> dict:
 async def _execute_scan(scan_id: int) -> None:
     final_status: ScanStatus | None = None
     started: float | None = None
-    metrics_started = False
     try:
         image_name = await _transition_pending_to_running(scan_id)
         if image_name is None:
@@ -259,7 +268,6 @@ async def _execute_scan(scan_id: int) -> None:
                 final_status = ScanStatus.CANCELLED
             return
 
-        metrics_started = True
         active_scans.inc()
         started = time.monotonic()
 
@@ -282,7 +290,7 @@ async def _execute_scan(scan_id: int) -> None:
         if final_status != ScanStatus.CANCELLED:
             logger.exception("Scan %d failed", scan_id)
     finally:
-        if metrics_started and started is not None:
+        if started is not None:
             active_scans.dec()
             scan_duration_seconds.observe(time.monotonic() - started)
         if final_status is not None:

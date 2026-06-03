@@ -3,6 +3,12 @@
 import logging
 
 from redis.asyncio import Redis
+from redis.exceptions import (
+    ConnectionError as RedisConnectionError,
+)
+from redis.exceptions import (
+    TimeoutError as RedisTimeoutError,
+)
 
 from app.config import settings
 
@@ -54,10 +60,10 @@ async def get_cached_scan_id_for_digest(digest: str | None) -> int | None:
     except ValueError:
         logger.warning("Redis cached value for digest %s is not an integer", digest)
         return None
-    except Exception as e:
+    except (RedisConnectionError, RedisTimeoutError):
         global _client
         _client = None
-        logger.warning("Redis GET error: %s", e)
+        logger.warning("Redis connection lost — cache disabled until reconnection")
         return None
 
 
@@ -70,7 +76,7 @@ async def cache_scan_result(digest: str | None, scan_id: int) -> None:
         return
     try:
         await r.setex(_digest_key(digest), CACHE_TTL, str(scan_id))
-    except Exception as e:
+    except (RedisConnectionError, RedisTimeoutError):
         global _client
         _client = None
-        logger.warning("Redis SETEX error: %s", e)
+        logger.warning("Redis connection lost — cache disabled until reconnection")
