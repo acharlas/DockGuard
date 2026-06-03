@@ -26,7 +26,6 @@ jobs:
       TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
       TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-      TF_VAR_cloudflare_ssh_service_token_id: ${{ secrets.CLOUDFLARE_SSH_SERVICE_TOKEN_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
