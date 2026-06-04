@@ -57,11 +57,9 @@ async def lifespan(app: FastAPI):
     log_build_runtime_status()
     yield
     _shutdown_event.set()
-    # Give active scans up to 10s to finish
-    for _ in range(20):
-        if not _background_tasks:
-            break
-        await asyncio.sleep(0.5)
+    deadline = asyncio.get_event_loop().time() + settings.shutdown_timeout_seconds
+    while _background_tasks and asyncio.get_event_loop().time() < deadline:
+        await asyncio.sleep(0.25)
     for task in _background_tasks:
         task.cancel()
     await engine.dispose()

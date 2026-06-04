@@ -1,0 +1,4 @@
+# dive binary pulls docker/docker Go SDK which has no v29 tag.
+# CVE-2026-34040 is "fixed in 29.3.1" but github.com/docker/docker
+# (now moby/moby) Go module tags stop at v28.5.2.
+CVE-2026-34040

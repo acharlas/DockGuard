@@ -314,7 +314,7 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
     # NOTE: CVE aggregation is Python-side (not SQL) because vulnerabilities are stored
     # as raw Trivy JSON in raw_report. We limit to the N most recent completed scans to
     # bound memory use. Denormalize into a Vulnerability table if this proves too slow.
-    # See CLAUDE.md: "Denormalize only if proven slow."
+    # See AGENTS.md: "Denormalize only if proven slow."
     cve_map: dict[str, dict] = {}
     cve_result = await db.execute(
         select(ScanResult.raw_report)

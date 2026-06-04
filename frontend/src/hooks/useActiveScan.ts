@@ -110,7 +110,12 @@ export function useActiveScan() {
     try {
       const created = await createScan(image.trim());
       if (isActiveScanStatus(created.scan_status)) {
-        setScan({ ...created, vulnerabilities: [], build: null });
+        const seed: ScanDetail = {
+          ...created,
+          vulnerabilities: [],
+          build: null,
+        };
+        setScan(seed);
         setActiveScanId(created.id);
         return;
       }

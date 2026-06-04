@@ -5,12 +5,15 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   backend-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -36,8 +39,8 @@ jobs:
           --health-interval 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -54,10 +57,10 @@ jobs:
   frontend-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
@@ -69,10 +72,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: frontend-lint
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
@@ -80,22 +83,94 @@ jobs:
       - run: npm test
         working-directory: frontend
 
-  build-push:
-    if: github.ref == 'refs/heads/main'
+  build-scan:
+    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
     needs: [backend-test, frontend-test]
     runs-on: ubuntu-latest
     permissions:
-      packages: write
+      contents: read
+      security-events: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build backend image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./backend
+          load: true
+          platforms: linux/amd64
+          tags: backend-local
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan backend image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: backend-local
+          format: sarif
+          output: trivy-backend.sarif
+          severity: CRITICAL
+          ignore-unfixed: true
+          limit-severities-for-sarif: true
+          trivyignores: .trivyignore
+          exit-code: 1
+
+      - name: Upload backend SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-backend.sarif
+          category: trivy-backend
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./frontend
+          load: true
+          platforms: linux/amd64
+          tags: frontend-local
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: frontend-local
+          format: sarif
+          output: trivy-frontend.sarif
+          severity: CRITICAL
+          ignore-unfixed: true
+          limit-severities-for-sarif: true
+          skip-setup-trivy: true
+          trivyignores: .trivyignore
+          exit-code: 1
+
+      - name: Upload frontend SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-frontend.sarif
+          category: trivy-frontend
+
+  push:
+    if: github.ref == 'refs/heads/main'
+    needs: build-scan
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6
+      - name: Push backend image
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           push: true
@@ -103,8 +178,11 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/dockguard-backend:${{ github.sha }}
             ghcr.io/${{ github.repository_owner }}/dockguard-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - uses: docker/build-push-action@v6
+      - name: Push frontend image
+        uses: docker/build-push-action@v7
         with:
           context: ./frontend
           push: true
@@ -112,3 +190,5 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/dockguard-frontend:${{ github.sha }}
             ghcr.io/${{ github.repository_owner }}/dockguard-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
