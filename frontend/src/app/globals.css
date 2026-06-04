@@ -111,3 +111,18 @@ pre,
   background: linear-gradient(90deg, #0b1016 25%, #161c24 50%, #0b1016 75%);
   background-size: 800px 100%;
 }
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}

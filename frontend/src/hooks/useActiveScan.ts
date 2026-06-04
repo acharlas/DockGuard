@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, cancelScan, createScan, getScan, ScanDetail } from "@/lib/api";
 import { SCAN_STATUS } from "@/lib/constants";
+import { useToast } from "@/contexts/ToastContext";
 
 const MAX_POLL_RETRIES = 3;
 const POLL_INITIAL_MS = 2000;
@@ -23,6 +24,7 @@ export function useActiveScan() {
   const [error, setError] = useState<string | null>(null);
 
   const router = useRouter();
+  const toast = useToast();
 
   const initialScanId = useMemo(() => {
     if (typeof window === "undefined") return null;
@@ -66,6 +68,20 @@ export function useActiveScan() {
         }
         setActiveScanId(null);
         setLoading(false);
+
+        if (data.scan_status === SCAN_STATUS.COMPLETED) {
+          const parts: string[] = [];
+          if (data.summary?.critical) parts.push(`${data.summary.critical} CRITICAL`);
+          if (data.summary?.high) parts.push(`${data.summary.high} HIGH`);
+          if (data.summary?.medium) parts.push(`${data.summary.medium} MEDIUM`);
+          toast.success(`${data.image_name} — Scan complete`, {
+            description: parts.length ? parts.join(" · ") : "No vulnerabilities found",
+          });
+        } else if (data.scan_status === SCAN_STATUS.FAILED) {
+          toast.error(`${data.image_name} — Scan failed`);
+        } else if (data.scan_status === SCAN_STATUS.CANCELLED) {
+          toast.info(`${data.image_name} — Cancelled`);
+        }
       } catch (err) {
         if (cancelled) {
           return;
@@ -107,7 +123,7 @@ export function useActiveScan() {
         clearTimeout(timeoutId);
       }
     };
-  }, [activeScanId]);
+  }, [activeScanId, toast]);
 
   useEffect(() => {
     if (initialScanId === null) return;
@@ -162,6 +178,7 @@ export function useActiveScan() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
         setError(err.detail ?? "Scan queue is full. Try again later.");
+        toast.error("Scan queue is full");
       } else {
         setError(
           getApiErrorMessage(
@@ -173,10 +190,11 @@ export function useActiveScan() {
             }
           )
         );
+        toast.error("Failed to start scan");
       }
       setLoading(false);
     }
-  }, [image, router]);
+  }, [image, router, toast]);
 
   const cancelActiveScan = useCallback(async () => {
     if (!scan) {
@@ -222,8 +240,9 @@ export function useActiveScan() {
           unavailableMessage: "Failed to cancel scan. Backend unavailable.",
         })
       );
+      toast.error("Failed to cancel scan");
     }
-  }, [scan]);
+  }, [scan, toast]);
 
   return {
     image,
