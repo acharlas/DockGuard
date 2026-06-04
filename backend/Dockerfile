@@ -11,26 +11,15 @@ COPY pyproject.toml .
 COPY app/ app/
 RUN pip install --no-cache-dir .
 
-FROM golang:1.25-alpine AS dive-builder
-
-ARG DIVE_VERSION=0.13.1
-ARG TARGETARCH=amd64
-
-ENV CGO_ENABLED=0
-WORKDIR /src
-
-RUN apk add --no-cache git \
-    && git clone --depth 1 --branch v${DIVE_VERSION} https://github.com/wagoodman/dive.git . \
-    && go get github.com/docker/docker@latest github.com/docker/cli@latest \
-    && go mod tidy \
-    && GOOS=linux GOARCH=${TARGETARCH} go build -o /go/bin/dive .
-
 FROM python-base AS base
 
 ARG DOCKGUARD_UID=10001
 ARG DOCKGUARD_GID=10001
 ARG DOCKER_CLI_VERSION=29.5.3
 ARG TARGETARCH=amd64
+ARG DIVE_VERSION=0.13.1
+ARG DIVE_SHA256_AMD64=0970549eb4a306f8825a84145a2534153badb4d7dcf3febd1967c706367c3d0e
+ARG DIVE_SHA256_ARM64=2fcd2cf20f634ccdb41efac44048b204bfc867c115641f37a7420693ed480a18
 
 ENV TRIVY_CACHE_DIR=/home/dockguard/.cache/trivy
 
@@ -44,14 +33,19 @@ RUN apt-get update && apt-get upgrade -y \
         | tee /etc/apt/sources.list.d/trivy.list \
     && apt-get update && apt-get install -y --no-install-recommends trivy \
     && case "${TARGETARCH}" in \
-        amd64) docker_arch="x86_64" ;; \
-        arm64) docker_arch="aarch64" ;; \
+        amd64) docker_arch="x86_64"  dive_sha="${DIVE_SHA256_AMD64}" ;; \
+        arm64) docker_arch="aarch64" dive_sha="${DIVE_SHA256_ARM64}" ;; \
         *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
        esac \
     && wget -O /tmp/docker.tgz "https://download.docker.com/linux/static/stable/${docker_arch}/docker-${DOCKER_CLI_VERSION}.tgz" \
     && tar -xzf /tmp/docker.tgz -C /tmp docker/docker \
     && install -m 0755 /tmp/docker/docker /usr/local/bin/docker \
     && rm -rf /tmp/docker.tgz /tmp/docker \
+    && wget -O /tmp/dive.tgz "https://github.com/wagoodman/dive/releases/download/v${DIVE_VERSION}/dive_${DIVE_VERSION}_linux_${TARGETARCH}.tar.gz" \
+    && echo "${dive_sha}  /tmp/dive.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/dive.tgz -C /tmp dive \
+    && install -m 0755 /tmp/dive /usr/local/bin/dive \
+    && rm -rf /tmp/dive.tgz /tmp/dive \
     && apt-get purge -y wget gnupg lsb-release \
     && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
@@ -65,7 +59,6 @@ WORKDIR /app
 FROM base AS runtime
 
 COPY --from=python-builder /opt/venv /opt/venv
-COPY --from=dive-builder /go/bin/dive /usr/local/bin/dive
 COPY --chown=dockguard:dockguard app/ app/
 COPY --chown=dockguard:dockguard alembic/ alembic/
 COPY --chown=dockguard:dockguard alembic.ini .
