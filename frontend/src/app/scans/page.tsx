@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { listScans, Scan } from "@/lib/api";
 import { formatBytes, formatPercent, formatRelativeTime } from "@/lib/format";
