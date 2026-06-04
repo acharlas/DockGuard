@@ -51,6 +51,7 @@ export interface Scan {
   image_digest?: string | null;
   scan_status: string;
   build_status?: string | null;
+  build_summary?: BuildSummary | null;
   started_at: string | null;
   completed_at: string | null;
   summary: ScanSummary | null;
@@ -119,8 +120,27 @@ export interface ScanListOut {
   size: number;
 }
 
-export async function listScans(page = 1, size = 20): Promise<ScanListOut> {
-  const res = await fetch(`/api/v1/scans?page=${page}&size=${size}`);
+export interface ScanListParams {
+  page?: number;
+  size?: number;
+  status?: string;
+  date_from?: string;
+  date_to?: string;
+  search?: string;
+}
+
+export async function listScans(
+  params: ScanListParams = {}
+): Promise<ScanListOut> {
+  const query = new URLSearchParams();
+  if (params.page) query.set("page", String(params.page));
+  if (params.size) query.set("size", String(params.size));
+  if (params.status) query.set("status", params.status);
+  if (params.date_from) query.set("date_from", params.date_from);
+  if (params.date_to) query.set("date_to", params.date_to);
+  if (params.search) query.set("search", params.search);
+
+  const res = await fetch(`/api/v1/scans?${query}`);
   if (!res.ok) {
     await throwApiError(res, `Failed to list scans: ${res.status}`);
   }
