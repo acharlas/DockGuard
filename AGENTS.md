@@ -12,6 +12,22 @@ docker compose exec frontend npm run lint
 
 No local Python/Node required — everything runs in Docker. The backend runs with `--reload` and the frontend with `next dev`.
 
+## Branch Conventions
+
+Branch names follow the form `{tag}/{name}` with a short kebab-case description:
+
+- `feat/` — new features or significant functionality
+- `fix/` — bug fixes
+- `chore/` — maintenance, dependency bumps, version updates
+- `docs/` — documentation changes
+- `refactor/` — code restructuring without behavior changes
+
+If a requested change is out of scope for the current branch, create a new branch off the parent using the appropriate tag.
+
+```bash
+git checkout -b {tag}/{name} {parent-branch}
+```
+
 ## Architecture
 
 - **Backend**: FastAPI 0.115+ (Python 3.12), SQLAlchemy async, single uvicorn worker — all in-process state (semaphore, subprocess registry) assumes one worker.
@@ -58,5 +74,5 @@ The IaC layer (`terraform/`, `ansible/`, GitHub Actions deploy pipeline) was str
 - **`cd.yml`**: deploy pipeline — `terraform init` (OCI S3 backend via `-backend-config`) + `terraform apply` → output domain → `ansible-playbook` via Cloudflare Tunnel SSH. Runs on main push. Requires GitHub environment `production` with secrets.
 - **Key variables** (OCI): `oci_tenancy_ocid`, `oci_user_ocid`, `oci_fingerprint`, `oci_private_key`, `oci_region`, `oci_compartment_id`, `oci_availability_domain`, `oci_instance_image_ocid`.
 - **Key variables** (Cloudflare): `cloudflare_api_token`, `cloudflare_account_id`, `cloudflare_zone_id`, `cloudflare_ssh_service_token_id`, `domain` (default `acharlas.dev`).
-- **Build lens disabled in production**: `ENABLE_BUILD_ANALYSIS=false` — no Docker socket on the VM.
+- **Build lens restricted in production**: `DOCKER_HOST=tcp://dockersocket:2375` — Docker API proxied through `tecnativa/docker-socket-proxy` with only image inspection and pull allowed.
 - **Terraform was flat** (split by concern, no modules): `provider.tf`, `network.tf`, `compute.tf`, `cloudflare.tf`, `outputs.tf`, `variables.tf`, `state.tf`, `cloud-init.yaml`.
