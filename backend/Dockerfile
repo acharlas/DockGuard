@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir .
 FROM golang:1.25-alpine AS dive-builder
 
 ARG DIVE_VERSION=0.13.1
-ARG TARGETARCH
+ARG TARGETARCH=amd64
 
 ENV CGO_ENABLED=0
 WORKDIR /src
@@ -30,7 +30,7 @@ FROM python-base AS base
 ARG DOCKGUARD_UID=10001
 ARG DOCKGUARD_GID=10001
 ARG DOCKER_CLI_VERSION=29.5.3
-ARG TARGETARCH
+ARG TARGETARCH=amd64
 
 ENV TRIVY_CACHE_DIR=/home/dockguard/.cache/trivy
 

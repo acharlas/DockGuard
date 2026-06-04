@@ -15,6 +15,8 @@ type ScanWorkspaceProps = {
   compact?: boolean;
   activeTab: WorkspaceTab;
   onTabChange: (tab: WorkspaceTab) => void;
+  severityFilter?: Set<string>;
+  onSeverityFilter?: (filter: Set<string>) => void;
 };
 
 export function ScanWorkspace({
@@ -22,14 +24,24 @@ export function ScanWorkspace({
   compact = false,
   activeTab,
   onTabChange,
+  severityFilter,
+  onSeverityFilter,
 }: ScanWorkspaceProps) {
   const vulnerabilities = useMemo(
     () =>
-      [...scan.vulnerabilities].sort(
-        (a, b) =>
-          SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)
-      ),
-    [scan.vulnerabilities]
+      [...scan.vulnerabilities]
+        .filter(
+          (v) =>
+            !severityFilter ||
+            severityFilter.size === 0 ||
+            severityFilter.has(v.severity)
+        )
+        .sort(
+          (a, b) =>
+            SEVERITY_ORDER.indexOf(a.severity) -
+            SEVERITY_ORDER.indexOf(b.severity)
+        ),
+    [scan.vulnerabilities, severityFilter]
   );
 
   const buildLayers = scan.build?.report?.layers ?? [];
@@ -70,7 +82,12 @@ export function ScanWorkspace({
         }
       >
         {activeTab === "security" ? (
-          <SecurityWorkspace vulnerabilities={vulnerabilities} />
+          <SecurityWorkspace
+            vulnerabilities={vulnerabilities}
+            totalCount={scan.vulnerabilities.length}
+            severityFilter={severityFilter}
+            onSeverityFilter={onSeverityFilter}
+          />
         ) : (
           <BuildWorkspace
             buildStatus={scan.build_status ?? null}
@@ -110,16 +127,44 @@ function TabButton({
 
 function SecurityWorkspace({
   vulnerabilities,
+  totalCount,
+  severityFilter,
+  onSeverityFilter,
 }: {
   vulnerabilities: Vulnerability[];
+  totalCount: number;
+  severityFilter?: Set<string>;
+  onSeverityFilter?: (filter: Set<string>) => void;
 }) {
+  const isFiltering =
+    severityFilter && severityFilter.size > 0 &&
+    (
+      severityFilter.size !== 2 ||
+      !severityFilter.has("CRITICAL") ||
+      !severityFilter.has("HIGH")
+    );
+
   return (
     <div className="space-y-5 sm:space-y-7 md:space-y-0">
       <div className="overflow-x-auto sm:overflow-hidden sm:rounded-[24px] sm:border sm:border-[color:var(--dockguard-border)]">
-        <div className="px-1 pb-3 sm:border-b sm:border-[color:var(--dockguard-border)] sm:bg-[color:var(--dockguard-panel)] sm:px-5 sm:py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-1 pb-3 sm:border-b sm:border-[color:var(--dockguard-border)] sm:bg-[color:var(--dockguard-panel)] sm:px-5 sm:py-4">
           <h3 className="text-lg font-semibold text-[color:var(--dockguard-ink)]">
-            Vulnerabilities ({vulnerabilities.length})
+            Vulnerabilities ({vulnerabilities.length}
+            {isFiltering && ` of ${totalCount}`})
           </h3>
+          {isFiltering && onSeverityFilter && (
+            <button
+              type="button"
+              onClick={() =>
+                onSeverityFilter(
+                  new Set(["CRITICAL", "HIGH"])
+                )
+              }
+              className="rounded-full border border-[color:var(--dockguard-accent-border)] bg-[color:var(--dockguard-accent-soft)] px-3 py-1 text-xs font-medium text-[color:var(--dockguard-ink)] transition hover:bg-[color:var(--dockguard-accent)]"
+            >
+              Reset
+            </button>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
@@ -167,7 +212,14 @@ function SecurityWorkspace({
                       <td
                         className={`px-5 py-3 font-mono text-xs font-semibold ${severityPresentation.textClassName}`}
                       >
-                        {vulnerability.vuln_id}
+                        <a
+                          href={`https://nvd.nist.gov/vuln/detail/${vulnerability.vuln_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          {vulnerability.vuln_id}
+                        </a>
                       </td>
                       <td className="px-5 py-3 text-[color:var(--dockguard-ink)]">
                         {vulnerability.package_name}

@@ -58,9 +58,13 @@ function getSeverityValue(summary: ScanSummary | null, severity: string) {
 export function SeverityDonut({
   summary,
   title = "Issues",
+  severityFilter,
+  onSeverityFilter,
 }: {
   summary: ScanSummary | null;
   title?: string;
+  severityFilter?: Set<string>;
+  onSeverityFilter?: (filter: Set<string>) => void;
 }) {
   const hasSummary = summary !== null;
   const values = SEVERITY_ORDER.map((severity) => ({
@@ -136,27 +140,59 @@ export function SeverityDonut({
       </div>
 
       <div className="mt-6 space-y-2">
-        {values.map((item) => (
-          <div
-            key={item.severity}
-            className="flex items-center justify-between rounded-[18px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-4 py-3"
-          >
-            <div className="flex items-center gap-3">
-              <span
-                className="h-2.5 w-2.5 rounded-full"
-                style={{
-                  backgroundColor: getSeverityPresentation(item.severity).color,
-                }}
-              />
-              <span className="text-sm font-medium text-[color:var(--dockguard-ink)]">
-                {item.severity}
+        {values.map((item) => {
+          const active = severityFilter?.has(item.severity) ?? false;
+          const clickable = !!onSeverityFilter;
+
+          const inner = (
+            <div
+              className={`flex items-center justify-between rounded-[18px] border px-4 py-3 transition ${
+                active
+                  ? "border-[color:var(--dockguard-accent-border)] bg-[color:var(--dockguard-accent-soft)]"
+                  : "border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)]"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{
+                    backgroundColor: getSeverityPresentation(item.severity)
+                      .color,
+                  }}
+                />
+                <span className="text-sm font-medium text-[color:var(--dockguard-ink)]">
+                  {item.severity}
+                </span>
+              </div>
+              <span className="font-mono text-sm text-[color:var(--dockguard-muted)]">
+                {item.value ?? "—"}
               </span>
             </div>
-            <span className="font-mono text-sm text-[color:var(--dockguard-muted)]">
-              {item.value ?? "—"}
-            </span>
-          </div>
-        ))}
+          );
+
+          if (!clickable) return <div key={item.severity}>{inner}</div>;
+
+          return (
+            <button
+              key={item.severity}
+              type="button"
+              onClick={() => {
+                const next = new Set(severityFilter);
+                if (active) next.delete(item.severity);
+                else next.add(item.severity);
+                onSeverityFilter?.(next);
+              }}
+              aria-pressed={active}
+              className={`w-full cursor-pointer rounded-[18px] focus:outline-none ${
+                active
+                  ? ""
+                  : "hover:border-[color:var(--dockguard-accent-border)]"
+              }`}
+            >
+              {inner}
+            </button>
+          );
+        })}
       </div>
     </section>
   );

@@ -2,6 +2,10 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Dashboard from "@/app/page";
 
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
+}));
+
 const mockScanResponse = {
   id: 1,
   image_name: "nginx:latest",
@@ -123,7 +127,9 @@ test("submits scan and displays security workspace after completion", async () =
 
   expect(criticalCve).toBeInTheDocument();
   expect(screen.getAllByText("CRITICAL").length).toBeGreaterThan(0);
-  expect(criticalCve.className).not.toEqual(highCve.className);
+  expect(criticalCve.parentElement?.className).not.toEqual(
+    highCve.parentElement?.className
+  );
   expect(criticalCve.closest("tr")?.getAttribute("style")).toContain("inset 3px 0 0");
   expect(criticalCve.closest("tr")?.getAttribute("style")).not.toEqual(
     highCve.closest("tr")?.getAttribute("style")
