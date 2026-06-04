@@ -20,7 +20,11 @@ from app.schemas.scan import (
     TopCve,
     TopImage,
 )
-from app.services.cache import extract_requested_digest, get_cached_scan_id_for_digest
+from app.services.cache import (
+    extract_requested_digest,
+    get_cached_scan_id_for_digest,
+    resolve_tag_digest,
+)
 from app.services.scanner import cancel_scan, run_scan
 from app.services.trivy_parser import parse_vulnerabilities
 from app.tasks import _shutdown_event, create_background_task
@@ -133,6 +137,38 @@ async def create_scan(
             ):
                 response.status_code = status.HTTP_200_OK
                 return cached
+
+        if settings.tag_dedup_enabled and not requested_digest:
+            resolved = await resolve_tag_digest(body.image)
+            if resolved is not None:
+                cached_id = await get_cached_scan_id_for_digest(resolved)
+                if cached_id is not None:
+                    result = await db.execute(
+                        select(ScanResult).where(ScanResult.id == cached_id)
+                    )
+                    cached = result.scalar_one_or_none()
+                    if (
+                        cached
+                        and cached.scan_status == ScanStatus.COMPLETED
+                        and cached.image_digest == resolved
+                    ):
+                        response.status_code = status.HTTP_200_OK
+                        return cached
+
+                recent_result = await db.execute(
+                    select(ScanResult)
+                    .where(ScanResult.image_digest == resolved)
+                    .where(ScanResult.scan_status == ScanStatus.COMPLETED)
+                    .order_by(ScanResult.completed_at.desc())
+                    .limit(1)
+                )
+                recent = recent_result.scalar_one_or_none()
+                if recent:
+                    from app.services.cache import cache_scan_result
+
+                    await cache_scan_result(resolved, recent.id)
+                    response.status_code = status.HTTP_200_OK
+                    return recent
 
         pending_count = (
             await db.execute(
