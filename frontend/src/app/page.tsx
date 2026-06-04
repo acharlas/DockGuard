@@ -87,7 +87,9 @@ export default function Dashboard() {
 
       <section className="md:grid md:gap-6 xl:grid-cols-[minmax(0,1.35fr)_320px] xl:items-start">
         <div className="min-w-0">
-          {scan ? (
+          {loading || isActiveScan ? (
+            <ScanningSkeleton imageName={image} />
+          ) : scan ? (
             <div className="space-y-4">
               <ScanWorkspace
                 key={scan.id}
@@ -121,6 +123,32 @@ function EmptyWorkspace() {
       <p className="mt-6 text-sm text-[color:var(--dockguard-muted)]">
         Run a scan to open the workspace.
       </p>
+    </section>
+  );
+}
+
+function ScanningSkeleton({ imageName }: { imageName: string }) {
+  return (
+    <section className="overflow-hidden rounded-[24px] border border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] shadow-none sm:rounded-[30px] sm:shadow-[0_24px_80px_rgba(120,53,15,0.08)]">
+      <div className="border-b border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] px-5 py-4 sm:px-7 sm:py-5">
+        <h2 className="truncate font-mono text-sm text-[color:var(--dockguard-ink)] sm:text-base">
+          {imageName}
+        </h2>
+      </div>
+      <div className="inline-flex w-full border-b border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-surface)] p-1">
+        <span className="flex-1 rounded-full px-4 py-2 text-center text-sm font-medium text-[color:var(--dockguard-muted)]">
+          Security
+        </span>
+        <span className="flex-1 rounded-full px-4 py-2 text-center text-sm font-medium text-[color:var(--dockguard-muted)]">
+          Build
+        </span>
+      </div>
+      <div className="flex flex-col items-center gap-4 px-8 py-12 text-center">
+        <div className="animate-spin rounded-full h-6 w-6 border-2 border-[color:var(--dockguard-border)] border-t-[color:var(--dockguard-accent)]" />
+        <p className="text-sm text-[color:var(--dockguard-muted)]">
+          Scanning image for vulnerabilities and build efficiency...
+        </p>
+      </div>
     </section>
   );
 }
