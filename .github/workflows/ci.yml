@@ -115,6 +115,7 @@ jobs:
         if: always()
         with:
           sarif_file: trivy-results.sarif
+          category: trivy-backend
 
       - name: Build frontend image
         uses: docker/build-push-action@v6
@@ -140,6 +141,7 @@ jobs:
         if: always()
         with:
           sarif_file: trivy-results.sarif
+          category: trivy-frontend
 
   push:
     if: github.ref == 'refs/heads/main'
