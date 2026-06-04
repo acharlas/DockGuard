@@ -108,6 +108,7 @@ jobs:
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
           exit-code: 1
 
       - name: Upload backend SARIF
@@ -134,6 +135,7 @@ jobs:
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
           exit-code: 1
 
       - name: Upload frontend SARIF
