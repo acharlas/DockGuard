@@ -127,7 +127,9 @@ test("submits scan and displays security workspace after completion", async () =
 
   expect(criticalCve).toBeInTheDocument();
   expect(screen.getAllByText("CRITICAL").length).toBeGreaterThan(0);
-  expect(criticalCve.className).not.toEqual(highCve.className);
+  expect(criticalCve.parentElement?.className).not.toEqual(
+    highCve.parentElement?.className
+  );
   expect(criticalCve.closest("tr")?.getAttribute("style")).toContain("inset 3px 0 0");
   expect(criticalCve.closest("tr")?.getAttribute("style")).not.toEqual(
     highCve.closest("tr")?.getAttribute("style")
