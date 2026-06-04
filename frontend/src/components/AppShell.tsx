@@ -18,84 +18,90 @@ function isActiveRoute(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function PrimaryNavLinks({
+  pathname,
+  mobile,
+  onNavigate,
+}: {
+  pathname: string;
+  mobile: boolean;
+  onNavigate?: () => void;
+}) {
+  const linkClassName = mobile
+    ? "block rounded-[20px] border px-4 py-3 text-sm font-medium transition-colors"
+    : "flex items-center justify-between rounded-[22px] border px-4 py-3 text-sm font-medium transition-colors";
+
+  return (
+    <>
+      {NAV_ITEMS.map(({ href, label }) => {
+        const active = isActiveRoute(pathname, href);
+
+        return (
+          <Link
+            key={href}
+            href={href}
+            onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
+            className={`${linkClassName} ${
+              active
+                ? "border-[color:var(--dockguard-accent-border)] bg-[color:var(--dockguard-accent-soft)] text-[color:var(--dockguard-ink)] shadow-[0_10px_30px_var(--dockguard-accent-glow)]"
+                : "border-transparent text-[color:var(--dockguard-muted)] hover:border-[color:var(--dockguard-border)] hover:bg-[color:var(--dockguard-panel)] hover:text-[color:var(--dockguard-ink)]"
+            }`}
+          >
+            <span>{label}</span>
+            {!mobile && (
+              <span
+                className={`h-2.5 w-2.5 rounded-full ${
+                  active
+                    ? "bg-[color:var(--dockguard-accent)]"
+                    : "bg-stone-300 dark:bg-stone-700"
+                }`}
+              />
+            )}
+          </Link>
+        );
+      })}
+    </>
+  );
+}
+
+function GrafanaNavLink({
+  grafanaUrl,
+  mobile,
+  onNavigate,
+}: {
+  grafanaUrl: string | null;
+  mobile: boolean;
+  onNavigate?: () => void;
+}) {
+  if (!grafanaUrl) {
+    return null;
+  }
+
+  const linkClassName = mobile
+    ? "inline-flex items-center justify-between rounded-[20px] border px-4 py-3 text-sm font-medium transition-colors"
+    : "inline-flex items-center justify-between rounded-[22px] border px-4 py-3 text-sm font-medium transition-colors";
+
+  return (
+    <a
+      href={grafanaUrl}
+      target="_blank"
+      rel="noreferrer noopener"
+      onClick={onNavigate}
+      className={`${linkClassName} border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] text-[color:var(--dockguard-muted)] hover:border-[color:var(--dockguard-accent-border)] hover:text-[color:var(--dockguard-ink)]`}
+    >
+      <span>Grafana</span>
+      {!mobile && (
+        <span className="text-xs text-[color:var(--dockguard-muted)]">↗</span>
+      )}
+    </a>
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL?.trim() || null;
-
-  const renderPrimaryNavLinks = ({
-    mobile = false,
-    onNavigate,
-  }: {
-    mobile?: boolean;
-    onNavigate?: () => void;
-  }) => {
-    const linkClassName = mobile
-      ? "block rounded-[20px] border px-4 py-3 text-sm font-medium transition-colors"
-      : "flex items-center justify-between rounded-[22px] border px-4 py-3 text-sm font-medium transition-colors";
-
-    const renderPrimaryLink = (href: string, label: string) => {
-      const active = isActiveRoute(pathname, href);
-
-      return (
-        <Link
-          key={href}
-          href={href}
-          onClick={onNavigate}
-          aria-current={active ? "page" : undefined}
-          className={`${linkClassName} ${
-            active
-              ? "border-[color:var(--dockguard-accent-border)] bg-[color:var(--dockguard-accent-soft)] text-[color:var(--dockguard-ink)] shadow-[0_10px_30px_var(--dockguard-accent-glow)]"
-              : "border-transparent text-[color:var(--dockguard-muted)] hover:border-[color:var(--dockguard-border)] hover:bg-[color:var(--dockguard-panel)] hover:text-[color:var(--dockguard-ink)]"
-          }`}
-        >
-          <span>{label}</span>
-          {!mobile && (
-            <span
-              className={`h-2.5 w-2.5 rounded-full ${
-                active
-                  ? "bg-[color:var(--dockguard-accent)]"
-                  : "bg-stone-300 dark:bg-stone-700"
-              }`}
-            />
-          )}
-        </Link>
-      );
-    };
-
-    return <>{NAV_ITEMS.map((item) => renderPrimaryLink(item.href, item.label))}</>;
-  };
-
-  const renderGrafanaLink = ({
-    mobile = false,
-    onNavigate,
-  }: {
-    mobile?: boolean;
-    onNavigate?: () => void;
-  }) => {
-    if (!grafanaUrl) {
-      return null;
-    }
-
-    const linkClassName = mobile
-      ? "inline-flex items-center justify-between rounded-[20px] border px-4 py-3 text-sm font-medium transition-colors"
-      : "inline-flex items-center justify-between rounded-[22px] border px-4 py-3 text-sm font-medium transition-colors";
-
-    return (
-      <a
-        href={grafanaUrl}
-        target="_blank"
-        rel="noreferrer noopener"
-        onClick={onNavigate}
-        className={`${linkClassName} border-[color:var(--dockguard-border)] bg-[color:var(--dockguard-panel)] text-[color:var(--dockguard-muted)] hover:border-[color:var(--dockguard-accent-border)] hover:text-[color:var(--dockguard-ink)]`}
-      >
-        <span>Grafana</span>
-        {!mobile && (
-          <span className="text-xs text-[color:var(--dockguard-muted)]">↗</span>
-        )}
-      </a>
-    );
-  };
 
   return (
     <div className="min-h-screen bg-[color:var(--dockguard-bg)] text-[color:var(--dockguard-ink)]">
@@ -115,10 +121,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
 
             <nav className="space-y-2" aria-label="Primary navigation">
-              {renderPrimaryNavLinks({})}
+              <PrimaryNavLinks pathname={pathname} mobile={false} />
             </nav>
           </div>
-          {renderGrafanaLink({})}
+          <GrafanaNavLink grafanaUrl={grafanaUrl} mobile={false} />
         </aside>
 
         <div className="min-h-screen">
@@ -197,16 +203,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
 
                 <nav className="space-y-2" aria-label="Mobile navigation">
-                  {renderPrimaryNavLinks({
-                    mobile: true,
-                    onNavigate: () => setMobileOpen(false),
-                  })}
+                  <PrimaryNavLinks
+                    pathname={pathname}
+                    mobile
+                    onNavigate={() => setMobileOpen(false)}
+                  />
                 </nav>
                 <div className="mt-auto">
-                  {renderGrafanaLink({
-                    mobile: true,
-                    onNavigate: () => setMobileOpen(false),
-                  })}
+                  <GrafanaNavLink
+                    grafanaUrl={grafanaUrl}
+                    mobile
+                    onNavigate={() => setMobileOpen(false)}
+                  />
                 </div>
               </div>
             </div>
