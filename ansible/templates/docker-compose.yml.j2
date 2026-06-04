@@ -43,10 +43,10 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       IMAGES: 1
-      IMAGES_POST: 1
       CONTAINERS: 1
-      POST: 0
+      BUILD: 0
       EXEC: 0
+      POST: 1
       BUILD: 0
     expose:
       - "2375"
