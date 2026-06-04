@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ApiError, cancelScan, createScan, getScan, ScanDetail } from "@/lib/api";
 import { SCAN_STATUS } from "@/lib/constants";
 
@@ -20,6 +21,16 @@ export function useActiveScan() {
   const [activeScanId, setActiveScanId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const router = useRouter();
+
+  const initialScanId = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const id = new URLSearchParams(window.location.search).get("scanId");
+    if (!id) return null;
+    const num = Number(id);
+    return isNaN(num) ? null : num;
+  }, []);
 
   // Track consecutive poll failures without triggering re-renders.
   const failureCountRef = useRef(0);
@@ -98,6 +109,30 @@ export function useActiveScan() {
     };
   }, [activeScanId]);
 
+  useEffect(() => {
+    if (initialScanId === null) return;
+
+    let cancelled = false;
+
+    getScan(initialScanId)
+      .then((detail) => {
+        if (cancelled) return;
+        setScan(detail);
+        setImage(detail.image_name);
+        if (isActiveScanStatus(detail.scan_status)) {
+          setActiveScanId(initialScanId);
+          setLoading(true);
+        }
+      })
+      .catch(() => {
+        // Scan no longer exists — user sees empty workspace.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialScanId]);
+
   const runScan = useCallback(async () => {
     if (!image.trim()) {
       return;
@@ -109,6 +144,7 @@ export function useActiveScan() {
 
     try {
       const created = await createScan(image.trim());
+      router.replace(`/?scanId=${created.id}`);
       if (isActiveScanStatus(created.scan_status)) {
         const seed: ScanDetail = {
           ...created,
@@ -140,7 +176,7 @@ export function useActiveScan() {
       }
       setLoading(false);
     }
-  }, [image]);
+  }, [image, router]);
 
   const cancelActiveScan = useCallback(async () => {
     if (!scan) {
