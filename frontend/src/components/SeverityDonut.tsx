@@ -63,8 +63,8 @@ export function SeverityDonut({
 }: {
   summary: ScanSummary | null;
   title?: string;
-  severityFilter?: string | null;
-  onSeverityFilter?: (severity: string | null) => void;
+  severityFilter?: Set<string>;
+  onSeverityFilter?: (filter: Set<string>) => void;
 }) {
   const hasSummary = summary !== null;
   const values = SEVERITY_ORDER.map((severity) => ({
@@ -141,7 +141,7 @@ export function SeverityDonut({
 
       <div className="mt-6 space-y-2">
         {values.map((item) => {
-          const active = severityFilter === item.severity;
+          const active = severityFilter?.has(item.severity) ?? false;
           const clickable = !!onSeverityFilter;
 
           const inner = (
@@ -176,9 +176,12 @@ export function SeverityDonut({
             <button
               key={item.severity}
               type="button"
-              onClick={() =>
-                onSeverityFilter?.(active ? null : item.severity)
-              }
+              onClick={() => {
+                const next = new Set(severityFilter);
+                if (active) next.delete(item.severity);
+                else next.add(item.severity);
+                onSeverityFilter?.(next);
+              }}
               aria-pressed={active}
               className={`w-full cursor-pointer rounded-[18px] focus:outline-none ${
                 active

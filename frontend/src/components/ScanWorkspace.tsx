@@ -15,8 +15,8 @@ type ScanWorkspaceProps = {
   compact?: boolean;
   activeTab: WorkspaceTab;
   onTabChange: (tab: WorkspaceTab) => void;
-  severityFilter?: string | null;
-  onSeverityFilter?: (severity: string | null) => void;
+  severityFilter?: Set<string>;
+  onSeverityFilter?: (filter: Set<string>) => void;
 };
 
 export function ScanWorkspace({
@@ -31,7 +31,10 @@ export function ScanWorkspace({
     () =>
       [...scan.vulnerabilities]
         .filter(
-          (v) => !severityFilter || v.severity === severityFilter
+          (v) =>
+            !severityFilter ||
+            severityFilter.size === 0 ||
+            severityFilter.has(v.severity)
         )
         .sort(
           (a, b) =>
@@ -130,24 +133,36 @@ function SecurityWorkspace({
 }: {
   vulnerabilities: Vulnerability[];
   totalCount: number;
-  severityFilter?: string | null;
-  onSeverityFilter?: (severity: string | null) => void;
+  severityFilter?: Set<string>;
+  onSeverityFilter?: (filter: Set<string>) => void;
 }) {
+  const isFiltering =
+    severityFilter && severityFilter.size > 0 &&
+    (
+      severityFilter.size !== 2 ||
+      !severityFilter.has("CRITICAL") ||
+      !severityFilter.has("HIGH")
+    );
+
   return (
     <div className="space-y-5 sm:space-y-7 md:space-y-0">
       <div className="overflow-x-auto sm:overflow-hidden sm:rounded-[24px] sm:border sm:border-[color:var(--dockguard-border)]">
         <div className="flex flex-wrap items-center justify-between gap-3 px-1 pb-3 sm:border-b sm:border-[color:var(--dockguard-border)] sm:bg-[color:var(--dockguard-panel)] sm:px-5 sm:py-4">
           <h3 className="text-lg font-semibold text-[color:var(--dockguard-ink)]">
             Vulnerabilities ({vulnerabilities.length}
-            {severityFilter && ` of ${totalCount}`})
+            {isFiltering && ` of ${totalCount}`})
           </h3>
-          {severityFilter && onSeverityFilter && (
+          {isFiltering && onSeverityFilter && (
             <button
               type="button"
-              onClick={() => onSeverityFilter(null)}
+              onClick={() =>
+                onSeverityFilter(
+                  new Set(["CRITICAL", "HIGH"])
+                )
+              }
               className="rounded-full border border-[color:var(--dockguard-accent-border)] bg-[color:var(--dockguard-accent-soft)] px-3 py-1 text-xs font-medium text-[color:var(--dockguard-ink)] transition hover:bg-[color:var(--dockguard-accent)]"
             >
-              Clear
+              Reset
             </button>
           )}
         </div>

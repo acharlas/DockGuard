@@ -13,8 +13,8 @@ import { MobileSeveritySummary } from "@/components/SeverityDonut";
 export default function ScanDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("security");
-  const [severityFilter, setSeverityFilter] = useState<string | null>(
-    null
+  const [severityFilter, setSeverityFilter] = useState<Set<string>>(
+    () => new Set(["CRITICAL", "HIGH"])
   );
   const [scan, setScan] = useState<ScanDetail | null>(null);
   const [loading, setLoading] = useState(true);

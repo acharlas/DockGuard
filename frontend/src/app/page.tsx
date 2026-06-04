@@ -8,8 +8,8 @@ import { useActiveScan } from "@/hooks/useActiveScan";
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("security");
-  const [severityFilter, setSeverityFilter] = useState<string | null>(
-    null
+  const [severityFilter, setSeverityFilter] = useState<Set<string>>(
+    () => new Set(["CRITICAL", "HIGH"])
   );
   const {
     image,

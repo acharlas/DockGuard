@@ -6,8 +6,8 @@ import { WorkspaceTab } from "@/components/ScanWorkspace";
 type ScanInsightPanelProps = {
   activeTab: WorkspaceTab;
   scan: ScanDetail | null;
-  severityFilter: string | null;
-  onSeverityFilter: (severity: string | null) => void;
+  severityFilter: Set<string>;
+  onSeverityFilter: (severityFilter: Set<string>) => void;
 };
 
 export function ScanInsightPanel({
