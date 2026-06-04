@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     # Prevents unbounded memory use as scan history grows.
     stats_recent_scan_limit: int = 100
     shutdown_timeout_seconds: float = 10.0
+    tag_dedup_enabled: bool = True
+    tag_dedup_cache_seconds: int = 300
 
     model_config = {"env_file": ".env"}
 
