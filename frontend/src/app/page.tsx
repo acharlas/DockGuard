@@ -8,6 +8,9 @@ import { useActiveScan } from "@/hooks/useActiveScan";
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("security");
+  const [severityFilter, setSeverityFilter] = useState<string | null>(
+    null
+  );
   const {
     image,
     setImage,
@@ -97,6 +100,8 @@ export default function Dashboard() {
                 compact
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
+                severityFilter={severityFilter}
+                onSeverityFilter={setSeverityFilter}
               />
               <MobileSeveritySummary summary={scan.summary ?? null} />
             </div>
@@ -106,7 +111,12 @@ export default function Dashboard() {
         </div>
 
         <div className="hidden md:block">
-          <ScanInsightPanel activeTab={activeTab} scan={scan} />
+          <ScanInsightPanel
+            activeTab={activeTab}
+            scan={scan}
+            severityFilter={severityFilter}
+            onSeverityFilter={setSeverityFilter}
+          />
         </div>
       </section>
     </div>

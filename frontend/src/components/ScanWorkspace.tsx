@@ -15,6 +15,8 @@ type ScanWorkspaceProps = {
   compact?: boolean;
   activeTab: WorkspaceTab;
   onTabChange: (tab: WorkspaceTab) => void;
+  severityFilter?: string | null;
+  onSeverityFilter?: (severity: string | null) => void;
 };
 
 export function ScanWorkspace({
@@ -22,14 +24,21 @@ export function ScanWorkspace({
   compact = false,
   activeTab,
   onTabChange,
+  severityFilter,
+  onSeverityFilter,
 }: ScanWorkspaceProps) {
   const vulnerabilities = useMemo(
     () =>
-      [...scan.vulnerabilities].sort(
-        (a, b) =>
-          SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)
-      ),
-    [scan.vulnerabilities]
+      [...scan.vulnerabilities]
+        .filter(
+          (v) => !severityFilter || v.severity === severityFilter
+        )
+        .sort(
+          (a, b) =>
+            SEVERITY_ORDER.indexOf(a.severity) -
+            SEVERITY_ORDER.indexOf(b.severity)
+        ),
+    [scan.vulnerabilities, severityFilter]
   );
 
   const buildLayers = scan.build?.report?.layers ?? [];
@@ -70,7 +79,12 @@ export function ScanWorkspace({
         }
       >
         {activeTab === "security" ? (
-          <SecurityWorkspace vulnerabilities={vulnerabilities} />
+          <SecurityWorkspace
+            vulnerabilities={vulnerabilities}
+            totalCount={scan.vulnerabilities.length}
+            severityFilter={severityFilter}
+            onSeverityFilter={onSeverityFilter}
+          />
         ) : (
           <BuildWorkspace
             buildStatus={scan.build_status ?? null}
@@ -110,16 +124,32 @@ function TabButton({
 
 function SecurityWorkspace({
   vulnerabilities,
+  totalCount,
+  severityFilter,
+  onSeverityFilter,
 }: {
   vulnerabilities: Vulnerability[];
+  totalCount: number;
+  severityFilter?: string | null;
+  onSeverityFilter?: (severity: string | null) => void;
 }) {
   return (
     <div className="space-y-5 sm:space-y-7 md:space-y-0">
       <div className="overflow-x-auto sm:overflow-hidden sm:rounded-[24px] sm:border sm:border-[color:var(--dockguard-border)]">
-        <div className="px-1 pb-3 sm:border-b sm:border-[color:var(--dockguard-border)] sm:bg-[color:var(--dockguard-panel)] sm:px-5 sm:py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-1 pb-3 sm:border-b sm:border-[color:var(--dockguard-border)] sm:bg-[color:var(--dockguard-panel)] sm:px-5 sm:py-4">
           <h3 className="text-lg font-semibold text-[color:var(--dockguard-ink)]">
-            Vulnerabilities ({vulnerabilities.length})
+            Vulnerabilities ({vulnerabilities.length}
+            {severityFilter && ` of ${totalCount}`})
           </h3>
+          {severityFilter && onSeverityFilter && (
+            <button
+              type="button"
+              onClick={() => onSeverityFilter(null)}
+              className="rounded-full border border-[color:var(--dockguard-accent-border)] bg-[color:var(--dockguard-accent-soft)] px-3 py-1 text-xs font-medium text-[color:var(--dockguard-ink)] transition hover:bg-[color:var(--dockguard-accent)]"
+            >
+              Clear
+            </button>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
