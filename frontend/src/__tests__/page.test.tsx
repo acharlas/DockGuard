@@ -1,7 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Dashboard from "@/app/page";
-import { ToastProvider } from "@/contexts/ToastContext";
 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
@@ -94,7 +93,7 @@ beforeEach(() => {
 });
 
 test("renders the lean analysis shell", () => {
-  render(<ToastProvider><Dashboard /></ToastProvider>);
+  render(<Dashboard />);
 
   expect(screen.getByText("Scan an image")).toBeInTheDocument();
   expect(screen.getByPlaceholderText("nginx:latest")).toBeInTheDocument();
@@ -114,7 +113,7 @@ test("submits scan and displays security workspace after completion", async () =
     return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
   }) as jest.Mock;
 
-  render(<ToastProvider><Dashboard /></ToastProvider>);
+  render(<Dashboard />);
 
   await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
@@ -147,7 +146,7 @@ test("switches to the build tab and renders build metrics", async () => {
     return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
   }) as jest.Mock;
 
-  render(<ToastProvider><Dashboard /></ToastProvider>);
+  render(<Dashboard />);
 
   await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
@@ -179,7 +178,7 @@ test("shows queue message when scan queue is full", async () => {
     return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
   }) as jest.Mock;
 
-  render(<ToastProvider><Dashboard /></ToastProvider>);
+  render(<Dashboard />);
 
   await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
@@ -203,7 +202,7 @@ test("shows backend-unavailable message when scan creation fails upstream", asyn
     return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
   }) as jest.Mock;
 
-  render(<ToastProvider><Dashboard /></ToastProvider>);
+  render(<Dashboard />);
 
   await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
@@ -246,7 +245,7 @@ test("keeps the current workspace visible when a new submit fails", async () => 
     return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
   }) as jest.Mock;
 
-  render(<ToastProvider><Dashboard /></ToastProvider>);
+  render(<Dashboard />);
 
   const input = screen.getByPlaceholderText("nginx:latest");
 
@@ -294,7 +293,7 @@ test("renders cached completed scans without starting a poll loop", async () => 
     return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
   }) as jest.Mock;
 
-  render(<ToastProvider><Dashboard /></ToastProvider>);
+  render(<Dashboard />);
 
   await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
@@ -323,7 +322,7 @@ test("renders pending scan workspace without started_at", async () => {
     });
   }) as jest.Mock;
 
-  render(<ToastProvider><Dashboard /></ToastProvider>);
+  render(<Dashboard />);
 
   await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
@@ -400,7 +399,7 @@ test("ignores stale poll responses after cancel and restart", async () => {
     return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
   }) as jest.Mock;
 
-  render(<ToastProvider><Dashboard /></ToastProvider>);
+  render(<Dashboard />);
 
   await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
@@ -458,7 +457,7 @@ test("keeps polling when running cancel is still settling", async () => {
     return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
   }) as jest.Mock;
 
-  render(<ToastProvider><Dashboard /></ToastProvider>);
+  render(<Dashboard />);
 
   await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
@@ -500,7 +499,7 @@ test("refreshes terminal state when cancel returns 409", async () => {
     return Promise.resolve({ ok: true, json: () => Promise.resolve(mockScanDetail) });
   }) as jest.Mock;
 
-  render(<ToastProvider><Dashboard /></ToastProvider>);
+  render(<Dashboard />);
 
   await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
@@ -535,7 +534,7 @@ test("clears pending poll timer on unmount", async () => {
     return Promise.resolve({ ok: true, json: () => Promise.resolve(pendingDetail) });
   }) as jest.Mock;
 
-  const view = render(<ToastProvider><Dashboard /></ToastProvider>);
+  const view = render(<Dashboard />);
   await user.type(screen.getByPlaceholderText("nginx:latest"), "nginx:latest");
   await user.click(screen.getByRole("button", { name: /run analysis/i }));
 

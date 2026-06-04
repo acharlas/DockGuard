@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { AppShell } from "@/components/AppShell";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { ToastProvider } from "@/contexts/ToastContext";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -42,9 +41,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen transition-colors duration-200">
         <ErrorBoundary>
-          <ToastProvider>
-            <AppShell>{children}</AppShell>
-          </ToastProvider>
+          <AppShell>{children}</AppShell>
         </ErrorBoundary>
       </body>
     </html>

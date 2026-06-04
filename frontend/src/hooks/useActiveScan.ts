@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, cancelScan, createScan, getScan, ScanDetail } from "@/lib/api";
 import { SCAN_STATUS } from "@/lib/constants";
-import { useToast } from "@/contexts/ToastContext";
 
 const MAX_POLL_RETRIES = 3;
 const POLL_INITIAL_MS = 2000;
@@ -24,7 +23,6 @@ export function useActiveScan() {
   const [error, setError] = useState<string | null>(null);
 
   const router = useRouter();
-  const toast = useToast();
 
   const initialScanId = useMemo(() => {
     if (typeof window === "undefined") return null;
@@ -68,20 +66,6 @@ export function useActiveScan() {
         }
         setActiveScanId(null);
         setLoading(false);
-
-        if (data.scan_status === SCAN_STATUS.COMPLETED) {
-          const parts: string[] = [];
-          if (data.summary?.critical) parts.push(`${data.summary.critical} CRITICAL`);
-          if (data.summary?.high) parts.push(`${data.summary.high} HIGH`);
-          if (data.summary?.medium) parts.push(`${data.summary.medium} MEDIUM`);
-          toast.success(`${data.image_name} — Scan complete`, {
-            description: parts.length ? parts.join(" · ") : "No vulnerabilities found",
-          });
-        } else if (data.scan_status === SCAN_STATUS.FAILED) {
-          toast.error(`${data.image_name} — Scan failed`);
-        } else if (data.scan_status === SCAN_STATUS.CANCELLED) {
-          toast.info(`${data.image_name} — Cancelled`);
-        }
       } catch (err) {
         if (cancelled) {
           return;
@@ -123,7 +107,7 @@ export function useActiveScan() {
         clearTimeout(timeoutId);
       }
     };
-  }, [activeScanId, toast]);
+  }, [activeScanId]);
 
   useEffect(() => {
     if (initialScanId === null) return;
@@ -175,22 +159,9 @@ export function useActiveScan() {
       const detail = await getScan(created.id);
       setScan(detail);
       setLoading(false);
-
-      if (detail.scan_status === SCAN_STATUS.COMPLETED) {
-        const parts: string[] = [];
-        if (detail.summary?.critical) parts.push(`${detail.summary.critical} CRITICAL`);
-        if (detail.summary?.high) parts.push(`${detail.summary.high} HIGH`);
-        if (detail.summary?.medium) parts.push(`${detail.summary.medium} MEDIUM`);
-        toast.success(`${detail.image_name} — Scan complete`, {
-          description: parts.length ? parts.join(" · ") : "No vulnerabilities found",
-        });
-      } else if (detail.scan_status === SCAN_STATUS.FAILED) {
-        toast.error(`${detail.image_name} — Scan failed`);
-      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
         setError(err.detail ?? "Scan queue is full. Try again later.");
-        toast.error("Scan queue is full");
       } else {
         setError(
           getApiErrorMessage(
@@ -202,11 +173,10 @@ export function useActiveScan() {
             }
           )
         );
-        toast.error("Failed to start scan");
       }
       setLoading(false);
     }
-  }, [image, router, toast]);
+  }, [image, router]);
 
   const cancelActiveScan = useCallback(async () => {
     if (!scan) {
@@ -252,9 +222,8 @@ export function useActiveScan() {
           unavailableMessage: "Failed to cancel scan. Backend unavailable.",
         })
       );
-      toast.error("Failed to cancel scan");
     }
-  }, [scan, toast]);
+  }, [scan]);
 
   return {
     image,
