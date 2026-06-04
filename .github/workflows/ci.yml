@@ -109,9 +109,10 @@ jobs:
         with:
           image-ref: backend-local
           format: sarif
-          output: trivy-results.sarif
+          output: trivy-backend.sarif
           severity: CRITICAL
           ignore-unfixed: true
+          limit-severities-for-sarif: true
           trivyignores: .trivyignore
           exit-code: 1
 
@@ -119,7 +120,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
-          sarif_file: trivy-results.sarif
+          sarif_file: trivy-backend.sarif
           category: trivy-backend
 
       - name: Build frontend image
@@ -137,9 +138,11 @@ jobs:
         with:
           image-ref: frontend-local
           format: sarif
-          output: trivy-results.sarif
+          output: trivy-frontend.sarif
           severity: CRITICAL
           ignore-unfixed: true
+          limit-severities-for-sarif: true
+          skip-setup-trivy: true
           trivyignores: .trivyignore
           exit-code: 1
 
@@ -147,7 +150,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
-          sarif_file: trivy-results.sarif
+          sarif_file: trivy-frontend.sarif
           category: trivy-frontend
 
   push:
