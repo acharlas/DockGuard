@@ -113,6 +113,7 @@ jobs:
           severity: CRITICAL
           ignore-unfixed: true
           limit-severities-for-sarif: true
+          trivyignores: .trivyignore
           exit-code: 1
 
       - name: Upload backend SARIF
@@ -142,6 +143,7 @@ jobs:
           ignore-unfixed: true
           limit-severities-for-sarif: true
           skip-setup-trivy: true
+          trivyignores: .trivyignore
           exit-code: 1
 
       - name: Upload frontend SARIF
