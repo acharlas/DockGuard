@@ -110,11 +110,15 @@ async def resolve_tag_digest(image_name: str) -> str | None:
     host = parsed.hostname or ""
 
     has_host = "://" not in image_name and "/" in image_name.split(":")[0]
-    if host in (
-        "docker.io",
-        "registry-1.docker.io",
-        "index.docker.io",
-    ) or not has_host:
+    if (
+        host
+        in (
+            "docker.io",
+            "registry-1.docker.io",
+            "index.docker.io",
+        )
+        or not has_host
+    ):
         digest = await _resolve_docker_hub_digest(image_name)
     elif host == "ghcr.io":
         digest = await _resolve_ghcr_digest(image_name)
@@ -182,16 +186,12 @@ async def _resolve_docker_hub_digest(image_name: str) -> str | None:
             )
             head_resp.raise_for_status()
         except Exception as e:
-            logger.debug(
-                "Docker Hub manifest fetch failed for %s: %s", image_name, e
-            )
+            logger.debug("Docker Hub manifest fetch failed for %s: %s", image_name, e)
             return None
 
     digest = head_resp.headers.get("docker-content-digest")
     if not digest:
-        logger.debug(
-            "Docker Hub response missing digest header for %s", image_name
-        )
+        logger.debug("Docker Hub response missing digest header for %s", image_name)
     return digest
 
 
@@ -223,7 +223,5 @@ async def _resolve_ghcr_digest(image_name: str) -> str | None:
 
     digest = resp.headers.get("docker-content-digest")
     if not digest:
-        logger.debug(
-            "GHCR response missing digest header for %s", image_name
-        )
+        logger.debug("GHCR response missing digest header for %s", image_name)
     return digest
