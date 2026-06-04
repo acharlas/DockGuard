@@ -199,9 +199,12 @@ async def create_scan(
 async def list_scans(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
-    status: ScanStatus | None = None,
+    status: str | None = Query(
+        None, description="Comma-separated scan statuses"
+    ),
     date_from: datetime | None = None,
     date_to: datetime | None = None,
+    search: str | None = Query(None, description="Search by image name"),
     db: AsyncSession = Depends(get_db),
 ):
     query = (
@@ -212,8 +215,12 @@ async def list_scans(
     count_query = select(func.count()).select_from(ScanResult)
 
     if status:
-        query = query.where(ScanResult.scan_status == status)
-        count_query = count_query.where(ScanResult.scan_status == status)
+        statuses = [s.strip() for s in status.split(",") if s.strip()]
+        if statuses:
+            query = query.where(ScanResult.scan_status.in_(statuses))
+            count_query = count_query.where(
+                ScanResult.scan_status.in_(statuses)
+            )
 
     if date_from:
         query = query.where(ScanResult.created_at >= date_from)
@@ -222,6 +229,10 @@ async def list_scans(
     if date_to:
         query = query.where(ScanResult.created_at <= date_to)
         count_query = count_query.where(ScanResult.created_at <= date_to)
+
+    if search:
+        query = query.where(ScanResult.image_name.ilike(f"%{search}%"))
+        count_query = count_query.where(ScanResult.image_name.ilike(f"%{search}%"))
 
     total = (await db.execute(count_query)).scalar() or 0
     offset = (page - 1) * size

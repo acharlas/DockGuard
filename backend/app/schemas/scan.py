@@ -99,6 +99,7 @@ class ScanOut(BaseModel):
     image_digest: str | None = None
     scan_status: str
     build_status: str | None = None
+    build_summary: BuildSummary | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
     summary: ScanSummary | None = None

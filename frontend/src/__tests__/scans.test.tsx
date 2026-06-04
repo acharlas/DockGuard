@@ -15,20 +15,29 @@ const mockScans = {
       image_name: "nginx:latest",
       scan_status: "completed",
       build_status: "completed",
+      build_summary: {
+        image_size_bytes: 40000000,
+        efficiency_score: 0.97,
+        wasted_bytes: 1200000,
+        wasted_percent: 3.0,
+        layer_count: 5,
+        inefficient_layer_count: 1,
+      },
       started_at: "2026-03-11T00:00:05Z",
       completed_at: "2026-03-11T00:01:00Z",
       summary: { critical: 2, high: 3, medium: 1, low: 0, unknown: 0 },
-      created_at: "2026-03-11T00:00:00Z",
+      created_at: new Date().toISOString(),
     },
     {
       id: 2,
       image_name: "alpine:3.19",
       scan_status: "failed",
       build_status: "unavailable",
+      build_summary: null,
       started_at: null,
       completed_at: "2026-03-11T00:03:00Z",
       summary: null,
-      created_at: "2026-03-11T00:02:00Z",
+      created_at: new Date(Date.now() - 3600000).toISOString(),
     },
   ],
   total: 2,
@@ -55,7 +64,7 @@ test("renders history heading", async () => {
   });
 });
 
-test("renders scan rows from API with build status", async () => {
+test("renders scan rows with health status and build data", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({ ok: true, json: () => Promise.resolve(mockScans) })
   ) as jest.Mock;
@@ -67,13 +76,11 @@ test("renders scan rows from API with build status", async () => {
   });
 
   expect(screen.getAllByText("alpine:3.19").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("unavailable").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Complete").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Failed").length).toBeGreaterThan(0);
   expect(screen.getByText("2 scans")).toBeInTheDocument();
   expect(screen.getByText("Submitted")).toBeInTheDocument();
-  expect(
-    screen.getAllByText(new Date("2026-03-11T00:00:00Z").toLocaleString()).length
-  ).toBeGreaterThan(0);
+  expect(screen.getAllByText("just now").length).toBeGreaterThan(0);
 });
 
 test("shows empty state when no scans exist", async () => {
@@ -85,11 +92,11 @@ test("shows empty state when no scans exist", async () => {
   render(<ScansPage />);
 
   await waitFor(() => {
-    expect(screen.getAllByText(/no scans yet/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/no scans found/i).length).toBeGreaterThan(0);
   });
 });
 
-test("shows an error state instead of fake empty history when the API fails", async () => {
+test("shows an error state instead of empty when the API fails", async () => {
   global.fetch = jest.fn(() => Promise.reject(new Error("backend down"))) as jest.Mock;
 
   render(<ScansPage />);
@@ -102,7 +109,7 @@ test("shows an error state instead of fake empty history when the API fails", as
   });
 
   expect(screen.getAllByRole("button", { name: "Retry" }).length).toBeGreaterThan(0);
-  expect(screen.queryByText(/no scans yet/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/no scans found/i)).not.toBeInTheDocument();
 });
 
 test("keeps the last successful page visible when a later pagination request fails", async () => {
@@ -113,6 +120,7 @@ test("keeps the last successful page visible when a later pagination request fai
         image_name: "page-one:latest",
         scan_status: "completed",
         build_status: "completed",
+        build_summary: null,
         started_at: "2026-03-11T00:10:05Z",
         completed_at: "2026-03-11T00:11:00Z",
         summary: { critical: 1, high: 0, medium: 0, low: 0, unknown: 0 },
@@ -152,6 +160,12 @@ test("keeps the last successful page visible when a later pagination request fai
 
   expect(screen.getByText("1 / 2")).toBeInTheDocument();
   expect(screen.getAllByText("page-one:latest").length).toBeGreaterThan(0);
-  expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/scans?page=1&size=20");
-  expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/scans?page=2&size=20");
+  expect(fetchMock).toHaveBeenNthCalledWith(
+    1,
+    "/api/v1/scans?page=1&size=20&status=pending%2Crunning%2Ccompleted"
+  );
+  expect(fetchMock).toHaveBeenNthCalledWith(
+    2,
+    "/api/v1/scans?page=2&size=20&status=pending%2Crunning%2Ccompleted"
+  );
 });
