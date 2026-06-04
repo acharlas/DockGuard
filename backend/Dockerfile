@@ -17,8 +17,13 @@ ARG DIVE_VERSION=0.13.1
 ARG TARGETARCH
 
 ENV CGO_ENABLED=0
+WORKDIR /src
 
-RUN GOOS=linux GOARCH=${TARGETARCH} go install github.com/wagoodman/dive@v${DIVE_VERSION}
+RUN apk add --no-cache git \
+    && git clone --depth 1 --branch v${DIVE_VERSION} https://github.com/wagoodman/dive.git . \
+    && go get github.com/docker/docker@latest github.com/docker/cli@latest \
+    && go mod tidy \
+    && GOOS=linux GOARCH=${TARGETARCH} go build -o /go/bin/dive .
 
 FROM python-base AS base
 
