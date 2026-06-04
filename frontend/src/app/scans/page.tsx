@@ -132,7 +132,7 @@ export default function ScansPage() {
       size: PAGE_SIZE,
       status:
         statusFilter.size > 0
-          ? [...statusFilter].join(",")
+          ? Array.from(statusFilter).join(",")
           : undefined,
       date_from,
       date_to,
