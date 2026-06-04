@@ -167,7 +167,14 @@ function SecurityWorkspace({
                       <td
                         className={`px-5 py-3 font-mono text-xs font-semibold ${severityPresentation.textClassName}`}
                       >
-                        {vulnerability.vuln_id}
+                        <a
+                          href={`https://nvd.nist.gov/vuln/detail/${vulnerability.vuln_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          {vulnerability.vuln_id}
+                        </a>
                       </td>
                       <td className="px-5 py-3 text-[color:var(--dockguard-ink)]">
                         {vulnerability.package_name}
