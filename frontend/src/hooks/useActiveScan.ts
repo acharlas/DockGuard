@@ -175,6 +175,18 @@ export function useActiveScan() {
       const detail = await getScan(created.id);
       setScan(detail);
       setLoading(false);
+
+      if (detail.scan_status === SCAN_STATUS.COMPLETED) {
+        const parts: string[] = [];
+        if (detail.summary?.critical) parts.push(`${detail.summary.critical} CRITICAL`);
+        if (detail.summary?.high) parts.push(`${detail.summary.high} HIGH`);
+        if (detail.summary?.medium) parts.push(`${detail.summary.medium} MEDIUM`);
+        toast.success(`${detail.image_name} — Scan complete`, {
+          description: parts.length ? parts.join(" · ") : "No vulnerabilities found",
+        });
+      } else if (detail.scan_status === SCAN_STATUS.FAILED) {
+        toast.error(`${detail.image_name} — Scan failed`);
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {
         setError(err.detail ?? "Scan queue is full. Try again later.");
