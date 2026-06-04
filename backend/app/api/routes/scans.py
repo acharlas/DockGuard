@@ -199,9 +199,7 @@ async def create_scan(
 async def list_scans(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
-    status: str | None = Query(
-        None, description="Comma-separated scan statuses"
-    ),
+    status: str | None = Query(None, description="Comma-separated scan statuses"),
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     search: str | None = Query(None, description="Search by image name"),
@@ -218,9 +216,7 @@ async def list_scans(
         statuses = [s.strip() for s in status.split(",") if s.strip()]
         if statuses:
             query = query.where(ScanResult.scan_status.in_(statuses))
-            count_query = count_query.where(
-                ScanResult.scan_status.in_(statuses)
-            )
+            count_query = count_query.where(ScanResult.scan_status.in_(statuses))
 
     if date_from:
         query = query.where(ScanResult.created_at >= date_from)
