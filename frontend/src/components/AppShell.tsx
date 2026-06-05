@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { SiteFooter } from "@/components/SiteFooter";
 
 const NAV_ITEMS = [
   { href: "/", label: "Analysis" },
@@ -223,6 +224,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <main className="mx-auto w-full  px-4 py-5 sm:px-6 lg:px-10 lg:py-8">
             {children}
           </main>
+          <SiteFooter />
         </div>
       </div>
     </div>
