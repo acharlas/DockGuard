@@ -28,7 +28,7 @@ function AboutNavLink({
       className={`${linkClassName} ${
         active
           ? "border-[color:var(--dockguard-accent-border)] bg-[color:var(--dockguard-accent-soft)] text-[color:var(--dockguard-ink)] shadow-[0_10px_30px_var(--dockguard-accent-glow)]"
-          : "border-transparent text-[color:var(--dockguard-muted)] hover:border-[color:var(--dockguard-border)] hover:bg-[color:var(--dockguard-panel)] hover:text-[color:var(--dockguard-ink)]"
+          : "border-[color:var(--dockguard-border)] text-[color:var(--dockguard-muted)] hover:bg-[color:var(--dockguard-panel)] hover:text-[color:var(--dockguard-ink)]"
       }`}
     >
       <span>About</span>
@@ -85,7 +85,7 @@ function PrimaryNavLinks({
             className={`${linkClassName} ${
               active
                 ? "border-[color:var(--dockguard-accent-border)] bg-[color:var(--dockguard-accent-soft)] text-[color:var(--dockguard-ink)] shadow-[0_10px_30px_var(--dockguard-accent-glow)]"
-                : "border-transparent text-[color:var(--dockguard-muted)] hover:border-[color:var(--dockguard-border)] hover:bg-[color:var(--dockguard-panel)] hover:text-[color:var(--dockguard-ink)]"
+                : "border-[color:var(--dockguard-border)] text-[color:var(--dockguard-muted)] hover:bg-[color:var(--dockguard-panel)] hover:text-[color:var(--dockguard-ink)]"
             }`}
           >
             <span>{label}</span>
