@@ -17,8 +17,34 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://dockguard.acharlas.dev"),
   title: "DockGuard",
-  description: "Container image analysis dashboard with Security and Build lenses.",
+  description:
+    "Container image analysis dashboard with Security (Trivy) and Build (Dive) lenses. FastAPI + Next.js 14 + PostgreSQL + Redis.",
+  openGraph: {
+    title: "DockGuard",
+    description:
+      "Container image analysis dashboard with Security (Trivy) and Build (Dive) lenses. Scan Docker images for vulnerabilities and analyze build efficiency.",
+    url: "https://dockguard.acharlas.dev",
+    siteName: "DockGuard",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "DockGuard — Container Image Analysis Dashboard",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "DockGuard",
+    description:
+      "Container image analysis dashboard with Security (Trivy) and Build (Dive) lenses.",
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({

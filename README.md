@@ -53,13 +53,7 @@ docker compose up --build
 | Grafana | http://localhost:3001 (admin / admin) |
 | Prometheus | http://localhost:9090 |
 
-> **Cache permissions:** The Compose stack now runs a one-shot `trivy-cache-init` service that fixes ownership on the named Trivy cache volume before the backend starts. Rebuild the backend image after pulling these changes.
->
-> **API access:** The backend is exposed at `http://localhost:8000` with Swagger at `http://localhost:8000/docs`. Browser API calls go through the Next.js route-handler proxy at `/api/v1/*`.
->
-> **Build analysis:** The Docker Compose stack sets `ENABLE_BUILD_ANALYSIS=true` and mounts `/var/run/docker.sock` so Dive can inspect real images. Set `DOCKER_GID` to the socket group on your host before starting the stack.
->
-> **Grafana sidebar link:** The Docker Compose stack bakes `http://localhost:3001` into the frontend build. For any other environment, set `NEXT_PUBLIC_GRAFANA_URL` explicitly before building the frontend image. If it is unset, the Grafana button is hidden.
+> **Notes:** Browser API calls go through a Next.js route-handler proxy at `/api/v1/*`. Swagger at `http://localhost:8000/docs`. Set `DOCKER_GID="$(stat -c '%g' /var/run/docker.sock)"` before starting for Build analysis (Dive). Grafana at `http://localhost:3001` is baked into the Compose frontend — override via `NEXT_PUBLIC_GRAFANA_URL` for other environments. A one-shot `trivy-cache-init` service fixes cache volume ownership on startup.
 
 ### Populate demo data
 
@@ -75,12 +69,6 @@ Launches scans for `nginx:latest`, `node:18-alpine`, `python:3.12-slim`, `postgr
 
 > Run `./scripts/seed.sh` first to populate data.
 
-Add screenshots to [`docs/screenshots/`](docs/screenshots/) with these filenames:
-
-- `dashboard-security.png`
-- `dashboard-build.png`
-- `history.png`
-
 | Dashboard Security | Dashboard Build | History |
 |--------------------|-----------------|---------|
 | ![Dashboard Security](docs/screenshots/dashboard-security.png) | ![Dashboard Build](docs/screenshots/dashboard-build.png) | ![History](docs/screenshots/history.png) |
@@ -91,28 +79,16 @@ Add screenshots to [`docs/screenshots/`](docs/screenshots/) with these filenames
 
 ```
 push → GitHub Actions (ci.yml)
-         │
-         ├─ lint     ruff (Python) + ESLint (TypeScript) in parallel
-         │
-         ├─ test     pytest --cov-fail-under=70 + npm test in parallel
-         │
-         ├─ build    docker buildx (ARM64) backend + frontend
-         │
-         ├─ security-scan
-         │           trivy image --severity CRITICAL --exit-code 1
-         │           Upload SARIF → GitHub Security tab
-         │
-         ├─ push-registry  (main branch only)
-         │           docker push ghcr.io/acharlas/dockguard-{backend,frontend}:latest
-         │
-         └─ deploy-app  (main branch only, after push)
-                     SSH via Cloudflare Tunnel → docker compose pull && up -d
+  ├─ lint        ruff (Python) + ESLint (TypeScript)
+  ├─ test        pytest --cov-fail-under=70 + npm test
+  ├─ build       docker buildx (ARM64) backend + frontend
+  ├─ security    trivy image --severity CRITICAL --exit-code 1 → SARIF → GitHub Security tab
+  ├─ push        ghcr.io/acharlas/dockguard-{backend,frontend}:latest (main only)
+  └─ deploy      SSH via Cloudflare Tunnel → docker compose pull && up -d (main only)
 
 push (terraform/) → GitHub Actions (deploy.yml)
-         │
-         ├─ terraform plan  (on PR — posts plan to PR comment)
-         │
-         └─ terraform apply  (on merge to main)
+  ├─ plan   (on PR, posted to PR comment)
+  └─ apply  (on merge to main)
 ```
 
 The security gate (`--exit-code 1` on CRITICAL) means broken images never reach the registry. SARIF output makes vulnerabilities visible directly in the GitHub Security tab without any external tooling.
@@ -130,30 +106,15 @@ The security gate (`--exit-code 1` on CRITICAL) means broken images never reach 
 | `GET` | `/api/v1/health` | Health check (DB, Redis, Trivy) |
 | `GET` | `/metrics` | Prometheus metrics |
 
-Direct backend docs are available in the dev stack at `http://localhost:8000/docs` and `http://localhost:8000/redoc`.
-
-The frontend proxies browser API calls through a Next.js route handler. The repository is designed for local/demo use, not public multi-user hosting. The sample Terraform deployment is demo-only, restricts dashboard access to the same CIDR you allow for SSH, and disables the Build lens by setting `ENABLE_BUILD_ANALYSIS=false`.
-
-If the backend restarts, any `pending` or `running` scans are reconciled to `failed` with `failure_reason = "worker_restarted"`. The app does not try to fake durable in-process jobs.
+Direct backend docs at `http://localhost:8000/docs` and `http://localhost:8000/redoc`. The sample Terraform deployment restricts dashboard access to your SSH CIDR and disables the Build lens (`ENABLE_BUILD_ANALYSIS=false`). On restart, `pending`/`running` scans reconcile to `failed` — no durable job faking.
 
 ### Async scan flow
 
 ```
-POST /scans → existing pending/running scan returned when duplicate work is already in flight
-          ↓
-          202 (scan_status: "pending")  |  200 (completed digest cache hit)
-                    ↓ asyncio background task
-              scan_status: "running"
-                    ↓
-              Trivy security analysis
-                    ↓
-              Dive build analysis (best effort)
-                    ↓
-              scan_status: "completed" | "failed" | "cancelled"
-                    ↓
-              completed scans persist Security + Build output on the same row
-                    ↓
-              Redis cache set for immutable digest → digest-pinned requests can reuse a recent completed result
+POST /scans
+  ├─ existing pending/running scan returned (dedup)
+  ├─ 202 → background task (pending → running → Trivy → Dive → completed/failed/cancelled)
+  └─ 200 → digest cache hit (Redis, 10-min TTL)
 ```
 
 ---

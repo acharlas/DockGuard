@@ -76,3 +76,13 @@ The IaC layer (`terraform/`, `ansible/`, GitHub Actions deploy pipeline) was str
 - **Key variables** (Cloudflare): `cloudflare_api_token`, `cloudflare_account_id`, `cloudflare_zone_id`, `cloudflare_ssh_service_token_id`, `domain` (default `acharlas.dev`).
 - **Build lens restricted in production**: `DOCKER_HOST=tcp://dockersocket:2375` — Docker API proxied through `tecnativa/docker-socket-proxy` with only image inspection and pull allowed.
 - **Terraform was flat** (split by concern, no modules): `provider.tf`, `network.tf`, `compute.tf`, `cloudflare.tf`, `outputs.tf`, `variables.tf`, `state.tf`, `cloud-init.yaml`.
+
+<!-- lean-ctx-compression -->
+OUTPUT STYLE: dense
+- Each statement = one atomic fact line
+- Use abbreviations: fn, cfg, impl, deps, req, res, ctx, err, ret
+- Diff lines only (+/-/~), never repeat unchanged code
+- Symbols: → (causes), + (adds), − (removes), ~ (modifies), ∴ (therefore)
+- No narration, no filler, no hedging
+- BUDGET: ≤200 tokens per response unless code block required
+<!-- /lean-ctx-compression -->
