@@ -1,4 +1,12 @@
-# dive binary pulls docker/docker Go SDK which has no v29 tag.
-# CVE-2026-34040 is "fixed in 29.3.1" but github.com/docker/docker
-# (now moby/moby) Go module tags stop at v28.5.2.
-CVE-2026-34040
+# Pre-built dive 0.13.1 is compiled with Go 1.24.1, which carries CVE-2025-68121
+# (improper cert validation during TLS session resumption in crypto/tls).
+# This is a real CVE in the Go stdlib, but unexercised by dive's code paths:
+#   - dive is a local CLI; it does not open a TLS server with GetConfigForClient
+#   - dive's only outbound calls are to the local Docker daemon over a Unix
+#     socket (or DOCKER_HOST over plain TCP); no TLS session resumption surface
+#   - the vulnerable Config.Clone mutation pattern is not present in dive
+# Trivy reports the CVE because it scans the embedded Go stdlib in the binary,
+# not because the binary actually exercises the bug.
+# Upstream fix requires a new dive release built with Go >= 1.24.13.
+# Last checked: 2026-06-04. Re-evaluate when dive ships a new release.
+CVE-2025-68121
