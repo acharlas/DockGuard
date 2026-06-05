@@ -6,6 +6,45 @@ import { useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SiteFooter } from "@/components/SiteFooter";
 
+function AboutNavLink({
+  mobile,
+  onNavigate,
+}: {
+  mobile: boolean;
+  onNavigate?: () => void;
+}) {
+  const pathname = usePathname();
+  const active = pathname === "/about";
+
+  const linkClassName = mobile
+    ? "block rounded-[20px] border px-4 py-3 text-sm font-medium transition-colors"
+    : "flex items-center justify-between rounded-[22px] border px-4 py-3 text-sm font-medium transition-colors";
+
+  return (
+    <Link
+      href="/about"
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      className={`${linkClassName} ${
+        active
+          ? "border-[color:var(--dockguard-accent-border)] bg-[color:var(--dockguard-accent-soft)] text-[color:var(--dockguard-ink)] shadow-[0_10px_30px_var(--dockguard-accent-glow)]"
+          : "border-transparent text-[color:var(--dockguard-muted)] hover:border-[color:var(--dockguard-border)] hover:bg-[color:var(--dockguard-panel)] hover:text-[color:var(--dockguard-ink)]"
+      }`}
+    >
+      <span>About</span>
+      {!mobile && (
+        <span
+          className={`h-2.5 w-2.5 rounded-full ${
+            active
+              ? "bg-[color:var(--dockguard-accent)]"
+              : "bg-stone-300 dark:bg-stone-700"
+          }`}
+        />
+      )}
+    </Link>
+  );
+}
+
 const NAV_ITEMS = [
   { href: "/", label: "Analysis" },
   { href: "/scans", label: "History" },
@@ -125,7 +164,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <PrimaryNavLinks pathname={pathname} mobile={false} />
             </nav>
           </div>
-          <GrafanaNavLink grafanaUrl={grafanaUrl} mobile={false} />
+          <div className="space-y-1">
+            <AboutNavLink mobile={false} />
+            <GrafanaNavLink grafanaUrl={grafanaUrl} mobile={false} />
+          </div>
         </aside>
 
         <div className="min-h-screen">
@@ -210,7 +252,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     onNavigate={() => setMobileOpen(false)}
                   />
                 </nav>
-                <div className="mt-auto">
+                <div className="mt-auto space-y-1">
+                  <AboutNavLink
+                    mobile
+                    onNavigate={() => setMobileOpen(false)}
+                  />
                   <GrafanaNavLink
                     grafanaUrl={grafanaUrl}
                     mobile
