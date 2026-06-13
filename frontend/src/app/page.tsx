@@ -37,6 +37,9 @@ export default function Dashboard() {
         <h1 className="text-xl font-semibold tracking-tight text-[color:var(--dockguard-ink)] sm:mt-3 sm:text-4xl">
           Scan an image
         </h1>
+        <p className="mt-1 text-xs text-[color:var(--dockguard-muted)]">
+          Pulls any public image from Docker Hub, GitHub Container Registry, or Quay
+        </p>
 
         <form
           onSubmit={handleSubmit}
